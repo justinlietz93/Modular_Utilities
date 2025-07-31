@@ -6,6 +6,7 @@ import time
 import xml.etree.ElementTree as ET
 from xml.dom import minidom
 from collections import defaultdict
+from datetime import datetime
 
 # Imports from our rewritten analyzer
 from analyzer import analyze_directory, save_analysis, load_analysis
@@ -75,7 +76,7 @@ def plan_chunks(files_metadata, num_chunks, root_dir):
     # Filter out any empty chunks, though this is less likely with the new logic
     return [chunk for chunk in chunks if chunk]
 
-def create_chunk_xml(chunk_files, master_report, root_dir):
+def create_chunk_xml(chunk_files, master_report, root_dir, notebooklm=False, dt=False, output_filename="", chunk_num=1, total_chunks=1):
     """
     Builds a complete XML report for a single chunk using the minidom library
     to correctly handle CDATA sections.
@@ -89,6 +90,11 @@ def create_chunk_xml(chunk_files, master_report, root_dir):
         elem = doc.createElement(name)
         elem.appendChild(doc.createTextNode(str(text)))
         parent.appendChild(elem)
+
+    # --- Add Date/Time as first XML element if requested (only when notebooklm is NOT used) ---
+    if dt and not notebooklm:
+        current_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        create_text_element(root_element, "generated_timestamp", current_datetime)
 
     # --- 1. Add Metadata ---
     metadata_element = doc.createElement("metadata")
@@ -155,7 +161,30 @@ def create_chunk_xml(chunk_files, master_report, root_dir):
             if i < len(parts) - 1:
                 content_element.appendChild(doc.createTextNode(']]>'))
 
-    return doc.toprettyxml(indent="  "), chunk_stats
+    final_xml = doc.toprettyxml(indent="  ")
+    
+    # Add headers for NotebookLM and/or date/time compatibility if requested
+    header_parts = []
+    
+    # NotebookLM header takes priority (goes first)
+    if notebooklm:
+        base_name = os.path.splitext(os.path.basename(output_filename))[0]
+        if total_chunks > 1:
+            header_parts.append(f"# {base_name}_part_{chunk_num} of {total_chunks}")
+        else:
+            header_parts.append(f"# {base_name}")
+    
+    # Add date/time as markdown subsection only if notebooklm is used
+    if dt and notebooklm:
+        current_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        header_parts.append(f"Generated on: {current_datetime}")
+    
+    # Combine headers if any exist
+    if header_parts:
+        header = "\n\n".join(header_parts) + "\n\n"
+        final_xml = header + final_xml
+    
+    return final_xml, chunk_stats
 
 
 def main():
@@ -163,6 +192,8 @@ def main():
     parser.add_argument("--input", required=True, help="Root directory to scan.")
     parser.add_argument("--output", required=True, help="Base path for the output report file(s).")
     parser.add_argument("--chunks", type=int, default=1, help="Number of chunks to split the report into.")
+    parser.add_argument("--notebooklm", action="store_true", help="Add markdown header for NotebookLM compatibility.")
+    parser.add_argument("--dt", action="store_true", help="Add date/time information to the output.")
     args = parser.parse_args()
 
     # --- Overwrite Feature: Clean up old report files before starting ---
@@ -215,13 +246,22 @@ def main():
         chunk_num = i + 1
         print(f"\nStep 3: Building chunk {chunk_num} of {len(chunk_file_lists)}...")
         
-        # Always use the pristine loaded_report as the source of truth
-        xml_content, chunk_stats = create_chunk_xml(chunk_files, loaded_report, args.input)
-        
         if args.chunks > 1:
             output_path = f"{output_base}_part_{chunk_num}{output_ext}"
         else:
             output_path = args.output
+        
+        # Always use the pristine loaded_report as the source of truth
+        xml_content, chunk_stats = create_chunk_xml(
+            chunk_files, 
+            loaded_report, 
+            args.input,
+            notebooklm=args.notebooklm,
+            dt=args.dt,
+            output_filename=output_path,
+            chunk_num=chunk_num,
+            total_chunks=len(chunk_file_lists)
+        )
             
         with open(output_path, "w", encoding='utf-8') as f:
             f.write(xml_content)
