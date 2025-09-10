@@ -27,6 +27,7 @@ from datetime import datetime
 from .analyzer import analyze_directory
 from .config import ignore_patterns
 from .diagram_generator import generate_mermaid_diagram
+from .html_to_markdown import convert_html_to_markdown
 
 def get_file_content(path):
     """Safely reads the content of a file."""
@@ -187,6 +188,7 @@ def main():
     parser.add_argument("--dt", action="store_true", help="Add date/time information to the output.")
     parser.add_argument("--mermaid", action="store_true", help="Generate a Mermaid diagram of the file structure.")
     parser.add_argument("--seeignored", action="store_true", help="Include ignored files and directories in the ASCII map.")
+    parser.add_argument("--convert", nargs=2, metavar=("FROM","TO"), help="Convert file contents on the fly (e.g. --convert html md). Currently only html->md is supported.")
     args = parser.parse_args()
 
     abs_input_dir = os.path.abspath(args.input)
@@ -236,11 +238,74 @@ def main():
         xml_content, chunk_stats = create_chunk_xml(
             chunk_files, master_report, abs_input_dir,
             notebooklm=args.notebooklm, dt=args.dt, output_filename=chunk_filename,
-            chunk_num=chunk_num, total_chunks=len(chunk_file_lists)
+            chunk_num=chunk_num, total_chunks=len(chunk_file_lists),
         )
             
+        # If conversion requested, perform a post-processing replacement on <content> blocks.
+        # Simpler: regenerate xml_content here with conversion integrated. To avoid
+        # duplicating logic, we do an inline modification when writing files below.
         with open(output_path, "w", encoding='utf-8') as f:
-            f.write(xml_content)
+            if args.convert:
+                from_fmt, to_fmt = [s.lower() for s in args.convert]
+                if (from_fmt, to_fmt) == ("html","md"):
+                    # Patch per-file content blocks by reloading raw file data and converting.
+                    # This avoids re-running full XML assembly. We'll do a targeted replacement.
+                    # Simpler & safe: rebuild full XML with conversion (future refactor could DRY).
+                    xml_lines = []
+                    in_file = False
+                    current_path = None
+                    capture_content = False
+                    content_buffer = []
+                    for line in xml_content.splitlines():
+                        if '<file>' in line:
+                            in_file = True
+                        if in_file and '<path>' in line and '</path>' in line:
+                            # Extract relative path
+                            rel = line.split('<path>')[1].split('</path>')[0]
+                            current_path = rel
+                        if '<content>' in line:
+                            capture_content = True
+                            content_buffer = []
+                            xml_lines.append(line.replace('<content>', '<content converted="false">'))
+                            continue
+                        if '</content>' in line and capture_content:
+                            capture_content = False
+                            # Decide whether to convert
+                            if current_path and current_path.lower().endswith(('.html','.htm')):
+                                full_path = os.path.join(abs_input_dir, current_path)
+                                try:
+                                    with open(full_path,'r',encoding='utf-8',errors='ignore') as rf:
+                                        raw_html = rf.read()
+                                    md = convert_html_to_markdown(raw_html)
+                                    # Replace buffer with converted markdown
+                                    xml_lines[-1] = xml_lines[-1].replace('converted="false"','converted="md" original_extension="html"')
+                                    # Insert as CDATA safe (split if needed)
+                                    parts = md.split(']]>')
+                                    for pi,p in enumerate(parts):
+                                        if p:
+                                            xml_lines.append(f"<![CDATA[{p}]]>")
+                                        if pi < len(parts)-1:
+                                            xml_lines.append(']]>')
+                                except Exception as e:
+                                    xml_lines.append(f"<![CDATA[Conversion error: {e}]]>")
+                            else:
+                                # Re-add original captured lines
+                                for l in content_buffer:
+                                    xml_lines.append(l)
+                            xml_lines.append(line)
+                            continue
+                        if capture_content:
+                            content_buffer.append(line)
+                            continue
+                        if '</file>' in line:
+                            in_file = False
+                            current_path = None
+                        xml_lines.append(line)
+                    f.write('\n'.join(xml_lines))
+                else:
+                    f.write(xml_content)
+            else:
+                f.write(xml_content)
         
         duration = time.time() - start_time
         final_report_stats.append({'path': output_path, 'files': chunk_stats['files'], 'loc': chunk_stats['loc'], 'duration': duration})

@@ -52,6 +52,11 @@ You can customize the crawler's behavior with the following flags.
 -   `--dt` (Optional)
     Adds a timestamp to the generated report(s), either in the XML metadata or in the NotebookLM header, to indicate when the crawl was performed.
 
+-   `--convert <FROM> <TO>` (Optional)
+    On‑the‑fly content conversion for supported formats. Currently only `html md` is implemented. HTML files are parsed, navigation / script / style noise is stripped, and clean Markdown is produced. The converted result replaces the raw HTML inside the `<content>` element, and attributes like `converted="md" original_extension="html"` are added for traceability.
+    Example: `--convert html md`
+    (Future formats can plug into the same mechanism.)
+
 ## 3. Output Structure
 
 All reports and diagrams are saved in a new directory named `code_crawler_results/`, which is created in your project root.
