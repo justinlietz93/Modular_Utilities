@@ -53,9 +53,7 @@ You can customize the crawler's behavior with the following flags.
     Adds a timestamp to the generated report(s), either in the XML metadata or in the NotebookLM header, to indicate when the crawl was performed.
 
 -   `--convert <FROM> <TO>` (Optional)
-    On‑the‑fly content conversion for supported formats. Currently only `html md` is implemented. HTML files are parsed, navigation / script / style noise is stripped, and clean Markdown is produced. The converted result replaces the raw HTML inside the `<content>` element, and attributes like `converted="md" original_extension="html"` are added for traceability.
-    Example: `--convert html md`
-    (Future formats can plug into the same mechanism.)
+    On‑the‑fly conversion. Built‑in: `html md`. Cleans HTML into lean Markdown and strips obvious nav/breadcrumb lines (many links in one line, arrows, expand/collapse). No config files needed. Power users can extend by dropping a converter plugin or by setting env `CODE_CRAWLER_STRIP_PATTERNS="regex1;;regex2"`.
 
 ## 3. Output Structure
 

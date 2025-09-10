@@ -12,7 +12,7 @@ we can swap this module behind the same function signature.
 """
 
 from html.parser import HTMLParser
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 import re
 
 BLOCK_TAGS = {
@@ -36,9 +36,14 @@ class _HTMLToMarkdownParser(HTMLParser):
         self.list_stack: List[Tuple[str,int]] = []  # (type, indent_level)
         self.skip_depth = 0
         self.in_pre = False
-        self.current_link = None  # (href, text_buffer_index)
-        self.title: str | None = None
+        self.current_link: Optional[Tuple[str,int]] = None
+        self.title: Optional[str] = None
         self.capture_title = False
+        # Basic table support
+        self.in_table = False
+        self.current_table: Optional[List[List[str]]] = None
+        self.current_row: Optional[List[str]] = None
+        self.current_cell: Optional[List[str]] = None
 
     # --- Helpers ---------------------------------------------------------
     def _newline(self, ensure: bool = True):
@@ -114,6 +119,14 @@ class _HTMLToMarkdownParser(HTMLParser):
             self.out.append('**')
         elif tag in ('em','i'): 
             self.out.append('*')
+        elif tag == 'table':
+            self.in_table = True
+            self.current_table = []
+            self._newline()
+        elif tag == 'tr' and self.in_table:
+            self.current_row = []
+        elif tag in ('td','th') and self.in_table:
+            self.current_cell = []
 
     def handle_endtag(self, tag):
         tag = tag.lower()
@@ -152,6 +165,32 @@ class _HTMLToMarkdownParser(HTMLParser):
             self.out.append('**')
         elif tag in ('em','i'): 
             self.out.append('*')
+        elif tag == 'table' and self.in_table:
+            if self.current_table:
+                rows = [r for r in self.current_table if any(c.strip() for c in r)]
+                if rows:
+                    col_count = max(len(r) for r in rows)
+                    for r in rows:
+                        while len(r) < col_count:
+                            r.append('')
+                    self._newline()
+                    header = rows[0]
+                    self.out.append('| ' + ' | '.join(h.strip() or ' ' for h in header) + ' |\n')
+                    self.out.append('| ' + ' | '.join(['---']*len(header)) + ' |\n')
+                    for r in rows[1:]:
+                        self.out.append('| ' + ' | '.join(c.strip() for c in r) + ' |\n')
+                    self._newline()
+            self.in_table = False
+            self.current_table = None
+        elif tag == 'tr' and self.in_table:
+            if self.current_row is not None:
+                self.current_table.append(self.current_row)
+            self.current_row = None
+        elif tag in ('td','th') and self.in_table:
+            if self.current_cell is not None:
+                cell_text = _collapse_whitespace(''.join(self.current_cell))
+                self.current_row.append(cell_text)
+            self.current_cell = None
 
     def handle_data(self, data):
         if self.skip_depth:
@@ -160,7 +199,10 @@ class _HTMLToMarkdownParser(HTMLParser):
             title_text = _collapse_whitespace(data)
             if title_text:
                 self.title = (self.title or '') + title_text
-        self._append_text(data)
+        if self.in_table and self.current_cell is not None:
+            self.current_cell.append(data)
+        else:
+            self._append_text(data)
 
     def handle_entityref(self, name):
         self.out.append(f"&{name};")
@@ -176,6 +218,11 @@ def convert_html_to_markdown(html: str) -> str:
       * Collect a <title> (if any) and emit it as first H1 if not already present.
       * Normalize consecutive blank lines to a single blank line.
     """
+    # Strip DOCTYPE / XML declarations & nested CDATA markers
+    html = re.sub(r'(?is)<!DOCTYPE[^>]*>', ' ', html)
+    html = re.sub(r'(?is)<\?xml[^>]*>', ' ', html)
+    html = html.replace('<![CDATA[',' ').replace(']]>',' ')
+
     parser = _HTMLToMarkdownParser()
     try:
         parser.feed(html)
@@ -187,13 +234,52 @@ def convert_html_to_markdown(html: str) -> str:
         return text + '\n'
 
     md = ''.join(parser.out)
-    # Ensure first heading present
-    if parser.title and not re.search(r'^# ', md.strip()):
-        md = f"# {parser.title}\n\n" + md.lstrip()
+    lines = [l.rstrip() for l in md.splitlines()]
+    while lines and not lines[0].strip():
+        lines.pop(0)
+    first_h1 = next((i for i,l in enumerate(lines) if l.startswith('# ')), None)
+    if first_h1 is not None and first_h1 > 0:
+        lines = lines[first_h1:]
+    if parser.title and not any(l.startswith('# ') for l in lines):
+        lines.insert(0, f"# {parser.title.strip()}")
+        lines.insert(1, '')
+    # Remove duplicate leading identical H1
+    if len(lines) > 1 and lines[0].startswith('# ') and lines[1].startswith('# ') and lines[0]==lines[1]:
+        lines.pop(1)
+    link_pattern = re.compile(r'\[[^\]]+\]\([^\)]+\)')
+    def is_nav_or_footer(line: str) -> bool:
+        ls = line.strip()
+        if not ls:
+            return False
+        lower = ls.lower()
+        # Breadcrumb arrows or explicit expand/collapse hints
+        if '>>' in ls:
+            # Many short link segments
+            if len(link_pattern.findall(ls)) >= 2:
+                return True
+        # Lines dominated by links (three or more links)
+        if len(link_pattern.findall(ls)) >= 3:
+            return True
+        # Footer / site branding fragments
+        if 'operation charm' in lower:
+            if len(link_pattern.findall(ls)) >= 1 or 'service manual' in lower:
+                return True
+        if lower.startswith('* pro multis*'):
+            return True
+        if 'about operation charm' in lower:
+            return True
+        if lower.startswith('expand all') or 'collapse all' in lower:
+            return True
+        return False
 
-    # Cleanup: collapse excessive blank lines
-    md = re.sub(r'\n{3,}', '\n\n', md)
-    md = md.strip() + '\n'
+    cleaned = []
+    for l in lines:
+        if is_nav_or_footer(l):
+            continue
+        if l.strip()=='' and (not cleaned or cleaned[-1]==''):
+            continue
+        cleaned.append(l)
+    md = '\n'.join(cleaned).strip() + '\n'
     return md
 
 __all__ = ["convert_html_to_markdown"]
