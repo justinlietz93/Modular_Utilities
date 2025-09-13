@@ -1,0 +1,1 @@
+Pre-packaged modular LLM provider library that can be dropped in to any codebase ready to use.
