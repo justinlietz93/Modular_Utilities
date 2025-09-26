@@ -1,0 +1,9 @@
+aiohttp>=3.12,<4
+emoji>=2.0,<3
+alive-progress>=3.0,<4
+pytest-aiohttp>=1.0,<2
+pytest-asyncio>=1.0,<2
+pytest-cov>=4.0,<5
+ruff>=0.4,<1
+mypy>=1.6,<2
+build>=1.2,<2
