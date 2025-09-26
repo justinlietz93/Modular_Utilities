@@ -207,6 +207,17 @@ Hard validation requirements:
 
 ---
 
+## code_crawler Package Status — Snapshot (Executed This Session)
+- [DONE] Full repository test matrix executes cleanly after provisioning async web dependencies (`aiohttp`, `emoji`, `alive-progress`, `pytest-aiohttp`).
+  - Captured in `pytest` run post-installation (see latest session log).
+- [DONE] Phase 1 architecture remains modular: `presentation/cli`, `application`, `domain`, `infrastructure`, and `shared` packages align with Hybrid-Clean Architecture guidance.
+- [DONE] Privacy defaults and opt-in features confirmed via configuration inspection; no regressions detected.
+- [DONE] No files exceed 500 LOC; layering boundaries still enforced by imports.
+- [STARTED] Track new third-party dependencies in dependency manifest/lock before release hardening.
+  - Pending: ensure documentation references newly required packages for test execution.
+
+---
+
 ## CI Gates (Phase 1)
 - [DONE] Multi‑runtime test matrix (representative versions) is green
   - Local pytest execution succeeded across all included modules.
@@ -221,10 +232,55 @@ Hard validation requirements:
 
 ---
 
-## Phase 2 (Outline for Planning Only)
-- [ ] Knowledge graph of code, tests, dependencies; export in standard graph formats
-- [ ] Automatic diagram source generation (e.g., Mermaid/Markmap/PlantUML/Graphviz) with local rendering to images
-- [ ] “Explain cards” per area (optional, local models) including rationale and edge‑case notes
+## Phase 2 — Knowledge Surfaces & Visual Intuition (Detailed Plan)
+
+### Task 7 — Repository Knowledge Graph & Entity Extraction
+Purpose: Model the codebase as a navigable graph spanning code, tests, dependencies, and generated artifacts.
+
+Steps:
+1. [NOT STARTED] Define domain entities (modules, services, tests, configs, external deps) and their relationships in `domain/knowledge_graph.py` without leaking outer-layer concerns.
+2. [NOT STARTED] Extend scanners to emit structured events (functions, classes, imports, fixtures) via application ports, reusing incremental cache to avoid duplicate work.
+3. [NOT STARTED] Normalize dependency metadata (Python, system, tools) and associate with owning modules for impact analysis.
+4. [NOT STARTED] Serialize the knowledge graph to at least two portable formats (GraphML + JSON-LD) within the run space, including manifest references for provenance.
+5. [NOT STARTED] Provide CLI flags to select graph scopes/presets and to diff graphs across runs.
+
+Hard validation requirements (blocking progression to Task 8):
+- [NOT STARTED] ≥97% branch coverage on new graph domain/application modules with property-based tests covering relationship permutations.
+- [NOT STARTED] Graph schema contract test guaranteeing deterministic node/edge identifiers across runs.
+- [NOT STARTED] CLI smoke test demonstrating graph export and diff on fixture repo (captured as automated test).
+- [NOT STARTED] Documentation update with end-to-end graph walkthrough including schema diagram and troubleshooting.
+
+### Task 8 — Automated Diagram Generation & Rendering Pipeline
+Purpose: Produce up-to-date architecture and flow diagrams locally from the knowledge graph and metadata.
+
+Steps:
+1. [NOT STARTED] Introduce diagram templates (Mermaid, PlantUML, Graphviz DOT) derived from the knowledge graph via dedicated application services.
+2. [NOT STARTED] Implement a rendering adapter in `infrastructure/diagramming` that shells out to local renderers or pure-Python libraries, respecting privacy (no remote calls).
+3. [NOT STARTED] Support incremental regeneration by comparing diagram hashes; skip unchanged diagrams on cached runs.
+4. [NOT STARTED] Link rendered images and source files into the manifest and run summary with provenance metadata.
+5. [NOT STARTED] Expose CLI switches to choose diagram sets, output formats (SVG/PNG), and rendering concurrency.
+
+Hard validation requirements (blocking progression to Task 9):
+- [NOT STARTED] Deterministic rendering test ensuring diagrams remain byte-identical on stable inputs (Mermaid + PlantUML fixtures).
+- [NOT STARTED] Performance benchmark (automated) verifying diagram generation completes within configurable SLA for sample repo (<60s on reference hardware).
+- [NOT STARTED] Privacy audit checklist proving no outbound calls during rendering (enforced via integration test or sandbox logs).
+- [NOT STARTED] Documentation update with gallery of generated diagrams and instructions for renderer installation.
+
+### Task 9 — Local “Explain Cards” & Rationale Notes
+Purpose: Generate concise, privacy-respecting documentation cards describing critical areas, decisions, and edge cases.
+
+Steps:
+1. [NOT STARTED] Define domain models for explain cards (scope, summary, rationale, edge cases, traceability) ensuring they remain framework-agnostic.
+2. [NOT STARTED] Build application service that consumes knowledge graph, metrics, and bundles to draft cards via deterministic templates or optional local LLM integrations.
+3. [NOT STARTED] Provide opt-in local model adapters (e.g., llama.cpp runners) with configuration gating and clear privacy guardrails.
+4. [NOT STARTED] Integrate cards into run summary and bundle indices, including backlinks to source artifacts and metrics.
+5. [NOT STARTED] Allow CLI toggles for card generation mode (template-only vs. local-LLM) and per-area scoping.
+
+Hard validation requirements (gating Phase 2 completion):
+- [NOT STARTED] Regression tests verifying card content determinism in template mode and checksum stability when local LLM disabled.
+- [NOT STARTED] Quality rubric automated check (lint) ensuring every card includes rationale + edge-case sections populated.
+- [NOT STARTED] User documentation with copy-paste walkthrough for enabling local models, including resource requirements and troubleshooting.
+- [NOT STARTED] Accessibility review confirming cards render correctly in Markdown, HTML, and bundle outputs (tested via snapshot tests).
 
 ## Phase 3 (Outline for Planning Only)
 - [ ] Non‑code assets: OCR for documents, vision captioning for images, transcription/summarization for audio/video
@@ -247,3 +303,4 @@ Hard validation requirements:
 - [ ] 100% tests pass and ≥95% coverage on realistically testable code/features
 - [ ] Documentation is completely accurate and supports step‑by‑step reproducibility with clear UX
 - [ ] Each task maintains strict alignment with the overall goal; no scope creep or slop
+
