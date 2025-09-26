@@ -1,93 +1,52 @@
-# Code Crawler Utility
+# Code Crawler Utility (Phase 1)
 
-## 1. Overview
+The Code Crawler now delivers a deterministic, privacy-first analysis pipeline designed for AI-assisted development. Every run produces a reproducible manifest, metrics bundle, delta report, and structured context packages suitable for LLM ingestion.
 
-Code Crawler is a powerful, project-agnostic command-line utility designed to help developers and AI agents understand and visualize complex codebases. It scans a directory, analyzes its contents, and generates detailed reports in various formats. Its key features include:
+## Key Features
 
-- **Comprehensive Analysis:** Gathers metadata on every file, including size, lines of code (LOC), and language.
-- **Intelligent Chunking:** Automatically divides large codebases into smaller, more manageable XML reports for easier processing by large language models.
-- **Visual Diagrams:** Generates interactive Mermaid diagrams that provide a clear, hierarchical view of the project's structure.
-- **Customizable ignore patterns:** Easily exclude unnecessary files and directories (like `.git`, `__pycache__`, or `node_modules`) to keep reports clean and focused.
-- **Flexible Output:** Supports various output formats and naming conventions to suit different workflows.
+- **Versioned configuration model** with privacy, feature, threshold, source, and output options.
+- **Timestamped run spaces** containing manifests, metrics, bundles, logs, badges, and summaries.
+- **Incremental scanning** backed by content-addressable caching and precise delta reporting.
+- **Metrics ingestion** for tests (JUnit), coverage (LCOV/Cobertura), lint, and security tools (SARIF).
+- **Quality gates** that can enforce thresholds without impacting default runs.
+- **Deterministic bundle builder** with rich metadata headers and size/line guards.
+- **Structured logging** with privacy-aware redaction and configurable retention.
 
-This tool is designed to be run as a Python module from the root of your project, ensuring that all paths and ignore patterns are handled consistently and reliably.
-
-## 2. How to Run
-
-Because this tool is a proper Python module, you should run it from the **root directory** of the project you want to analyze.
-
-### Basic Command
+## Quickstart
 
 ```bash
-python -m code_crawler --input . --output MyProjectReport.xml
+python -m code_crawler --input . --preset all
 ```
 
-- `python -m code_crawler`: This tells Python to run the `code_crawler` module.
-- `--input .`: Specifies that the analysis should start from the current directory (the project root).
-- `--output MyProjectReport.xml`: Sets the base name for the generated report file(s).
+Common options:
 
-### Command-Line Flags & Examples
+- `--allow-network` – opt-in to outbound network access.
+- `--include/--ignore` – control source selection.
+- `--no-incremental` / `--force-rebuild` – bypass the cache when needed.
+- `--metrics-test` / `--metrics-coverage` / `--metrics-lint` / `--metrics-security` – provide artifacts for ingestion.
+- `--min-coverage`, `--max-failed-tests`, `--max-lint-warnings`, `--max-critical-vulns` – configure quality gates.
+- `--preset` – choose bundle presets (`all`, `tests`, `dependencies`, `api`).
 
-You can customize the crawler's behavior with the following flags.
+Configuration files can be supplied via `--config` (JSON). All outputs live under `code_crawler_runs/<timestamp>/` with subdirectories for manifests, metrics, bundles, badges, gates, delta, and summaries.
 
--   `--input <path>` **(Required)**
-    Specifies the root directory to scan.
-    *Example:* `--input .` to scan the current directory.
+## Run Outputs
 
--   `--output <filename.ext>` (Optional)
-    Sets the base name for the output report file(s).
-    *Example:* `--output MyProject.xml`
+Each run emits:
 
--   `--chunks <number>` (Optional)
-    Splits the report into a specified number of smaller files. This is useful for very large projects that might exceed the context window of an LLM. When used, this creates a subdirectory named after your output file to store the chunked parts.
-    *Example:* `--chunks 4` will create four report files (`MyProject_part_1.xml`, `MyProject_part_2.xml`, etc.) inside a `MyProject` folder.
+1. **Manifest** – schema-backed record of inputs, tool versions, hashes, and produced artifacts.
+2. **Delta report** – JSON report detailing added, changed, removed, and unchanged files.
+3. **Metrics summary** – aggregated counts for tests, coverage, lint, and security data.
+4. **Quality gates** – pass/fail status when thresholds are enabled.
+5. **Badges** – static SVG assets for coverage and test health (opt-in).
+6. **Bundles** – deterministic text packages with metadata headers and synopsis fields.
+7. **Run summary** – Markdown overview including “How it was made” details.
 
--   `--mermaid` (Optional)
-    In addition to the XML report, this generates a `.md` file containing a Mermaid diagram that visualizes the entire file and directory structure.
-    *Example:* Using this flag will create `MyProject_diagram.md`.
+Re-running on unchanged inputs uses cached digests to skip redundant work and produces byte-identical bundles.
 
--   `--notebooklm` (Optional)
-    Adds a special markdown header (e.g., `# MyProject_part_1 of 4`) to the top of each report file. This is a compatibility feature for easy import into Google's NotebookLM.
+## Testing
 
--   `--dt` (Optional)
-    Adds a timestamp to the generated report(s), either in the XML metadata or in the NotebookLM header, to indicate when the crawl was performed.
-
--   `--convert <FROM> <TO>` (Optional)
-    On‑the‑fly conversion. Built‑in: `html md`. Cleans HTML into lean Markdown and strips obvious nav/breadcrumb lines (many links in one line, arrows, expand/collapse). No config files needed. Power users can extend by dropping a converter plugin or by setting env `CODE_CRAWLER_STRIP_PATTERNS="regex1;;regex2"`.
-
-## 3. Output Structure
-
-All reports and diagrams are saved in a new directory named `code_crawler_results/`, which is created in your project root.
-
-- **Single Report (chunks=1):** If you don't specify chunking, a single XML report will be created.
-  - `code_crawler_results/MyProjectReport.xml`
-
-- **Multiple Chunks (chunks > 1):** If you request multiple chunks, a subdirectory is created to keep them organized.
-  - `code_crawler_results/MyProjectReport/MyProjectReport_part_1.xml`
-  - `code_crawler_results/MyProjectReport/MyProjectReport_part_2.xml`
-  - `...`
-
-- **Mermaid Diagram:** If you use the `--mermaid` flag, a markdown file containing the diagram is always created in the main results directory.
-  - `code_crawler_results/MyProjectReport_diagram.md`
-
-## 4. How to Configure Ignore Patterns
-
-To prevent the crawler from analyzing certain files or directories, edit the `ignore_patterns` list in `code_crawler/config.py`.
-
-The patterns are simple glob-style strings and are matched from the project root.
-
-**Examples:**
-```python
-# code_crawler/config.py
-
-ignore_patterns = [
-    # Ignores all files with the .log extension
-    '*.log',
-
-    # Ignores the entire 'node_modules' directory
-    'node_modules/*',
-
-    # Ignores a specific nested directory
-    'src/assets/legacy/*',
-]
+```bash
+pytest --cov=code_crawler --cov-report=term-missing
 ```
+
+Ensure coverage remains above 95% for the newly added components. All tests must pass on supported Python runtimes.
