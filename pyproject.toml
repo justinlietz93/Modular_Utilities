@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "code-crawler"
+version = "0.1.0"
+description = "Supercharged CLI-first code crawler for deterministic artifacts"
+readme = "code_crawler/README.md"
+requires-python = ">=3.10"
+authors = [
+  {name = "Modular Utilities Team"}
+]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+]
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+  "aiohttp>=3.12,<4",
+  "emoji>=2.0,<3",
+  "alive-progress>=3.0,<4",
+  "pytest-aiohttp>=1.0,<2",
+  "pytest-asyncio>=1.0,<2",
+  "pytest-cov>=4.0,<5",
+  "ruff>=0.4,<1",
+  "mypy>=1.6,<2",
+  "build>=1.2,<2",
+]
+
+[project.scripts]
+code-crawler = "code_crawler.presentation.cli.main:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["code_crawler*"]
+
+[tool.setuptools.package-data]
+code_crawler = [
+  "README.md",
+  "CODE_CRAWLER_PHASE1_CHECKLIST.md",
+  "EXPLAIN_CARD_REVIEW_CHECKLIST.md",
+]
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "-ra"
+testpaths = ["tests"]
