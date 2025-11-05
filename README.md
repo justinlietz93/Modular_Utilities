@@ -44,6 +44,8 @@ If you’re a developer looking to improve your workflow, or a curious reader ex
 
 ## Quick start
 
+🚀 **NEW: [Comprehensive Quickstart Guides](./quickstart/README.md)** - Detailed guides for every utility with examples, workflows, and best practices!
+
 Because this project is evolving, the most reliable way to try it is to clone and run locally.
 
 1) Clone the repository
@@ -58,9 +60,12 @@ Because this project is evolving, the most reliable way to try it is to clone an
   - pip install -U pip setuptools wheel
   - pip install -e .  # add [dev] if a dev extra is provided in the future
 
-3) Explore the modules
-- Check the source modules to see available utilities and their docstrings.
-- Many components are designed to be used independently—feel free to pick and choose.
+3) Explore the utilities
+- [Code Crawler](./quickstart/code_crawler_quickstart.md) - Transform your codebase into actionable intelligence
+- [Universal LLM Providers](./quickstart/providers_quickstart.md) - Write once, run on any AI provider
+- [Github-dlr](./quickstart/github_dlr_quickstart.md) - Download specific files/folders from GitHub
+- [Dependency Analyzer](./quickstart/dependency_analyzer_quickstart.md) - Real-time dependency tracking
+- [Python Utilities Generator](./quickstart/python_utilities_generator_quickstart.md) - Natural language to code
 
 Note: If/when TypeScript packages are published to npm, we’ll add npm/pnpm/yarn install instructions here.
 
