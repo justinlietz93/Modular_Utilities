@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import dataclass
+import logging
 from pathlib import Path
 from typing import Dict, List
 
@@ -68,16 +69,30 @@ class RunService:
         storage = RunStorage(self.config)
         storage.cleanup_old_runs()
         run_id = storage.run_id
+        # Attach file logging for this run
+        log_file = storage.subdirectory("logs") / "run.log"
+        file_handler = logging.FileHandler(str(log_file), encoding="utf-8")
+        file_handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
+        self.logger.addHandler(file_handler)
 
         cache_index = {}
         if incremental:
-            cache_index = load_cache(self.cache_path)
+            try:
+                cache_index = load_cache(self.cache_path)
+            except Exception:
+                # If the cache is unreadable or corrupt, continue without it rather than failing the run
+                self.logger.warning("Cache file unreadable; proceeding without incremental cache")
+                cache_index = {}
 
         walker = SourceWalker(self.config, cache_index)
         records, delta = walker.walk()
         events = walker.emit_events(records)
         event_instrumentation = walker.instrumentation()
         self.logger.info("Discovered %s files", len(records))
+        if not records:
+            self.logger.warning(
+                "No files discovered. Your include/ignore patterns may be too restrictive (e.g., '*' in ignore)."
+            )
 
         if incremental:
             update_cache(self.cache_path, records)
@@ -214,6 +229,15 @@ class RunService:
 
         manifest_writer = ManifestWriter(storage.manifest_path())
         artifacts: List[ArtifactRecord] = []
+        # Always include the run log if present
+        if log_file.exists():
+            artifacts.append(
+                ArtifactRecord(
+                    path=str(log_file.relative_to(storage.run_dir)),
+                    artifact_type="log",
+                    digest=ManifestWriter.digest_file(log_file),
+                )
+            )
         if metrics_path:
             artifacts.append(ArtifactRecord(path=str(metrics_path.relative_to(storage.run_dir)), artifact_type="metrics", digest=ManifestWriter.digest_file(metrics_path)))
         for badge_name, badge_path in badges.items():
@@ -415,7 +439,7 @@ class RunService:
             summary_path = storage.summary_path()
             summary_path.write_text(summary_content, encoding="utf-8")
 
-        return RunOutcome(
+        outcome = RunOutcome(
             run_id=run_id,
             manifest_path=manifest_path,
             delta_path=delta_path,
@@ -448,6 +472,13 @@ class RunService:
             },
             asset_card_index=asset_card_index_path,
         )
+        # Flush and detach file handler to persist logs
+        try:
+            file_handler.flush()
+        finally:
+            self.logger.removeHandler(file_handler)
+            file_handler.close()
+        return outcome
 
     def _filter_events(self, events: List["EntityEvent"]) -> List["EntityEvent"]:
         from .scanner import EntityEvent
