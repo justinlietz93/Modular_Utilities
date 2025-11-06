@@ -24,6 +24,12 @@ from ...domain.configuration import (
     with_cli_overrides,
 )
 
+# Optional YAML support for include.yaml / ignore.yaml files
+try:  # pragma: no cover
+    import yaml  # type: ignore
+except Exception:  # pragma: no cover
+    yaml = None  # type: ignore
+
 
 def load_config(path: Optional[Path]) -> CrawlerConfig:
     if not path:
@@ -159,9 +165,26 @@ def load_config(path: Optional[Path]) -> CrawlerConfig:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Supercharged code crawler")
     parser.add_argument("--input", default=".", help="Input directory")
+    parser.add_argument("--output-dir", type=Path, help="Directory for run outputs (overrides config/output.base_directory)")
     parser.add_argument("--config", type=Path, help="Configuration JSON file")
-    parser.add_argument("--include", nargs="*", default=[], help="Include glob patterns")
-    parser.add_argument("--ignore", nargs="*", default=[], help="Ignore glob patterns")
+    parser.add_argument(
+        "--include",
+        nargs="*",
+        default=[],
+        help=(
+            "Include glob patterns or path(s) to pattern files. Accepts:"
+            " YAML lists (include.yaml) or raw .gitignore-style files (one pattern per line)."
+        ),
+    )
+    parser.add_argument(
+        "--ignore",
+        nargs="*",
+        default=[],
+        help=(
+            "Ignore glob patterns or path(s) to pattern files. Accepts:"
+            " YAML lists (ignore.yaml) or raw .gitignore-style files (one pattern per line)."
+        ),
+    )
     parser.add_argument("--allow-network", action="store_true", help="Enable outbound network")
     parser.add_argument("--no-metrics", action="store_true", help="Disable metrics ingestion")
     parser.add_argument("--no-badges", action="store_true", help="Disable badge generation")
@@ -281,6 +304,14 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Disable asset card generation",
     )
+    parser.add_argument(
+        "--install-renderers",
+        choices=["ask", "yes", "no"],
+        help=(
+            "Control install prompts for diagram renderers (Mermaid/PlantUML/Graphviz). "
+            "ask: prompt in TTY (default); yes: auto-install where supported; no: never prompt/attempt."
+        ),
+    )
     parser.add_argument("--version", action="store_true", help="Print version and exit")
     return parser
 
@@ -305,6 +336,7 @@ def apply_cli(config: CrawlerConfig, args: argparse.Namespace) -> CrawlerConfig:
 
     overrides: Dict[str, object] = {
         "allow_network": args.allow_network,
+        "output_dir": args.output_dir,
         "enable_metrics": None if not args.no_metrics else False,
         "enable_badges": None if not args.no_badges else False,
         "enable_bundles": None if not args.no_bundles else False,
@@ -356,6 +388,103 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
         return 0
 
     config = load_config(args.config)
+
+    # Honor renderer install behavior via environment variable for downstream modules
+    if getattr(args, "install_renderers", None):
+        import os as _os
+
+        _os.environ["CODE_CRAWLER_INSTALL_RENDERERS"] = args.install_renderers
+
+    # Load include/ignore patterns from YAML files at the input root if present.
+    # Precedence: CLI flags > YAML files > config defaults.
+    input_root = Path(args.input).resolve()
+
+    def _parse_lines_file(path: Path) -> list[str]:
+        lines: list[str] = []
+        for line in path.read_text(encoding="utf-8").splitlines():
+            s = line.strip()
+            if not s or s.startswith("#"):
+                continue
+            # Allow optional YAML list prefix ('- ')
+            if s.startswith("- "):
+                s = s[2:].strip()
+            lines.append(s)
+        return lines
+
+    def _load_yaml_list(path: Path) -> list[str]:
+        if not path.exists():
+            return []
+        if yaml is not None:
+            try:
+                data = yaml.safe_load(path.read_text(encoding="utf-8"))
+            except Exception:
+                data = None
+            if isinstance(data, list):
+                return [str(x) for x in data if x]
+            if isinstance(data, dict):
+                for key in ("patterns", "include", "ignore"):
+                    value = data.get(key)
+                    if isinstance(value, list):
+                        return [str(x) for x in value if x]
+            # Not a list/dict: treat as raw .gitignore-style lines
+            return _parse_lines_file(path)
+        # Fallback when PyYAML is not available: simple line-based parsing
+        return _parse_lines_file(path)
+
+    include_yaml = _load_yaml_list(input_root / "include.yaml")
+    ignore_yaml = _load_yaml_list(input_root / "ignore.yaml")
+    # Also support raw .gitignore-style files at the input root
+    if not include_yaml:
+        alt_inc = input_root / "include.gitignore"
+        if alt_inc.exists():
+            include_yaml = _parse_lines_file(alt_inc)
+    if not ignore_yaml:
+        alt_ign = input_root / "ignore.gitignore"
+        if alt_ign.exists():
+            ignore_yaml = _parse_lines_file(alt_ign)
+    # Also support a standard .gitignore at the input root when no explicit ignore file was provided
+    if not ignore_yaml:
+        dot_gitignore = input_root / ".gitignore"
+        if dot_gitignore.exists():
+            ignore_yaml = _parse_lines_file(dot_gitignore)
+
+    if include_yaml or ignore_yaml:
+        src = config.sources
+        new_include = src.include if (args.include) else (include_yaml or src.include)
+        new_ignore = src.ignore if (args.ignore) else (ignore_yaml or src.ignore)
+        config = replace(config, sources=replace(src, include=list(new_include), ignore=list(new_ignore)))
+
+    # Expand CLI-provided include/ignore arguments if they point to YAML files.
+    def _resolve_patterns(values: list[str]) -> list[str]:
+        if not values:
+            return []
+        resolved: list[str] = []
+        for v in values:
+            candidate = Path(v)
+            if not candidate.is_absolute():
+                # Try relative to CWD first, then relative to input root
+                if candidate.exists():
+                    pass
+                else:
+                    ir_candidate = (input_root / candidate)
+                    if ir_candidate.exists():
+                        candidate = ir_candidate
+            # If file exists, load patterns from it. YAML files parsed with YAML; others as .gitignore-style lines
+            if candidate.exists() and candidate.is_file():
+                if candidate.suffix.lower() in {".yaml", ".yml"}:
+                    resolved.extend(_load_yaml_list(candidate))
+                else:
+                    resolved.extend(_parse_lines_file(candidate))
+            else:
+                # Not a file: treat as literal pattern provided inline
+                resolved.append(v)
+        return resolved
+
+    if args.include:
+        args.include = _resolve_patterns(args.include)
+    if args.ignore:
+        args.ignore = _resolve_patterns(args.ignore)
+
     config = apply_cli(config, args)
 
     service = RunService(config)

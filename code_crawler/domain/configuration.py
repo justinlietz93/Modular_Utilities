@@ -223,10 +223,14 @@ def with_cli_overrides(base_config: CrawlerConfig, overrides: Dict[str, object])
         )
 
     output = base_config.output
-    if overrides.get("retention") is not None:
+    # Allow overriding base_directory and retention independently
+    if overrides.get("output_dir") is not None or overrides.get("retention") is not None:
+        out_dir = overrides.get("output_dir", output.base_directory)
+        if isinstance(out_dir, str):
+            out_dir = Path(out_dir)
         output = OutputOptions(
-            base_directory=output.base_directory,
-            retention=int(overrides["retention"]),
+            base_directory=out_dir,
+            retention=int(overrides.get("retention", output.retention)),
             manifest_name=output.manifest_name,
             summary_name=output.summary_name,
         )

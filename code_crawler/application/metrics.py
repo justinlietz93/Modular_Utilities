@@ -93,7 +93,7 @@ def parse_junit_report(path: Path) -> TestSummary:
 
 
 def parse_cobertura(path: Path) -> CoverageSummary:
-    root = ET.fromstring(path.read_text(encoding="utf-8"))
+    root = ET.fromstring(path.read_text(encoding="utf-8")) # B314: Only using locally
     lines_valid = int(float(root.attrib.get("lines-valid", "0")))
     lines_covered = int(float(root.attrib.get("lines-covered", "0")))
     return CoverageSummary(covered_lines=lines_covered, total_lines=lines_valid)

@@ -1,4 +1,4 @@
-# Code Crawler Utility (Phase 1)
+# Code Crawler Utility
 
 The Code Crawler now delivers a deterministic, privacy-first analysis pipeline designed for AI-assisted development. Every run produces a reproducible manifest, metrics bundle, delta report, and structured context packages suitable for LLM ingestion.
 
@@ -19,8 +19,16 @@ The Code Crawler now delivers a deterministic, privacy-first analysis pipeline d
 ## Quickstart
 
 ```bash
-python -m code_crawler --input . --preset all
+code-crawler --input . --preset all
 ```
+
+GUI quickstart (Windows PowerShell):
+
+```powershell
+code-crawler-gui
+```
+
+Tip: The GUI previews PNG diagrams inline. For best results, render PNGs by adding `--diagram-format png` when running from the CLI, or enable PNG in the GUI settings.
 
 Common options:
 
@@ -49,7 +57,44 @@ Common options:
 - `--asset-preview` – cap the number of characters retained in asset previews and index entries.
 - `--asset-cards` / `--no-asset-cards` – control whether reviewer-facing asset cards are generated alongside raw extracts.
 
-Configuration files can be supplied via `--config` (JSON). All outputs live under `code_crawler_runs/<timestamp>/` with subdirectories for manifests, metrics, bundles, badges, gates, delta, graphs, and summaries.
+Renderer install prompts/logging control:
+
+- `--install-renderers {ask|yes|no}` – control installer prompts and verbosity for Mermaid/PlantUML/Graphviz.
+  - `ask` (default): prompt only in interactive TTYs.
+  - `yes`: attempt installs automatically where supported (may require elevation on Windows for Chocolatey; prefers Scoop when available).
+  - `no`: never prompt or attempt; also suppresses per-renderer availability logs.
+  - Env override: `CODE_CRAWLER_INSTALL_RENDERERS=ask|yes|no`.
+
+Configuration files can be supplied via `--config` (JSON). All outputs live under `code_crawler_runs/<timestamp>/` with subdirectories for manifests, metrics, bundles, badges, gates, delta, graphs, diagrams, and summaries.
+
+### Include/ignore rules (Git-style, Windows-friendly)
+
+Patterns use GitWildMatch semantics (`.gitignore`-style): `**`, `!negation`, directory suffix `/`, etc.
+
+Resolution order:
+
+1. CLI flags `--include` / `--ignore`.
+
+  Values can be literal patterns (e.g., `**/*.py`) or paths to files containing patterns: YAML lists (`.yml`/`.yaml`) or raw line-based files (e.g., `.gitignore`). Absolute Windows paths are supported (e.g., `C:\\repo\\ignore.gitignore`). Relative paths are resolved from CWD, then from `--input`.
+
+1. If no flags are provided, files at the input root are auto-loaded when present, in this order:
+
+- `include.yaml`, `ignore.yaml`
+- `include.gitignore`, `ignore.gitignore`
+- `.gitignore` (used as ignore only)
+
+Tips:
+
+- If you want to “include most code, exclude binaries”, it’s often easiest to leave `include` empty and put binary extensions/folders into `ignore`.
+- A lone `*` in your ignore file will match everything (including directories); remove it or follow with negations for the content you want to keep.
+
+Examples:
+
+```powershell
+# Windows PowerShell examples
+code-crawler --input . --ignore C:\repo\ignore.gitignore --install-renderers no
+code-crawler --input . --include .\include.gitignore --ignore .\ignore.gitignore --diagram-format png
+```
 
 ## Installation
 
@@ -101,6 +146,7 @@ Each run emits:
 10. **Asset extracts** – `assets/index.json`, per-asset text previews, metadata manifests, and optional reviewer cards when enabled.
 11. **Explain cards** – Markdown rationale notes plus `cards/index.json` and per-card metadata documenting traceability, review status, and generation mode.
 12. **Run summary** – Markdown overview including “How it was made” details.
+13. **Per-run logs** – structured file logs under `code_crawler_runs/<timestamp>/logs/run.log` for troubleshooting and provenance.
 
 Re-running on unchanged inputs uses cached digests to skip redundant work and produces byte-identical bundles.
 
@@ -124,19 +170,21 @@ The diagram generator translates the knowledge graph into multiple visual format
 | `dependencies` | Graphviz DOT | Test coverage fan-out and dependency surfaces |
 | `tests` | PlantUML | Deterministic activity views for discovered tests |
 
-Rendered assets and their source templates are written to `runs/<timestamp>/diagrams/` alongside `metadata.json`, which records:
+Rendered assets and their source templates are written to `code_crawler_runs/<timestamp>/diagrams/` alongside `metadata.json`, which records:
 
 - renderer availability probes (Mermaid CLI, PlantUML, Graphviz `dot`),
 - accessibility themes applied (`light`, `dark`),
 - per-template digests, cache hits, and diagnostics.
 
-### Local Renderer Installation (Offline Friendly)
+### Local Renderer Installation (Offline Friendly, Windows-aware)
 
-- **Mermaid CLI:** `npm install -g @mermaid-js/mermaid-cli`
-- **PlantUML:** `brew install plantuml` (macOS) / `scoop install plantuml` (Windows) / download the standalone JAR.
-- **Graphviz (`dot`):** `apt install graphviz` (Debian/Ubuntu) / `brew install graphviz` (macOS) / `choco install graphviz` (Windows).
+- **Mermaid CLI:** `npm install -g @mermaid-js/mermaid-cli` (or use `npx @mermaid-js/mermaid-cli` – used automatically when global CLI is missing).
+- **PlantUML (Windows non-admin):** `scoop install plantuml` (recommended), otherwise use an elevated shell for Chocolatey: `choco install plantuml -y`.
+- **Graphviz `dot` (Windows):** `scoop install graphviz` (non-admin) or `choco install graphviz -y` (admin PowerShell).
 
-When these binaries are unavailable, the `LocalDiagramRenderer` falls back to deterministic SVG/PNG renderers to keep runs offline-friendly. The metadata file flags fallbacks so you can re-render with native tools later without breaking reproducibility.
+When binaries are unavailable or fail, the renderer captures diagnostics and falls back to deterministic images so runs never crash. Metadata records the fallback so you can re-render later.
+
+Quiet mode: pass `--install-renderers no` to suppress availability logs and skip installs (ideal for CI).
 
 ### Accessibility Validation
 
@@ -181,6 +229,25 @@ pytest --cov=code_crawler --cov-report=term-missing
 ```
 
 Ensure coverage remains above 95% for the newly added components. All tests must pass on supported Python runtimes.
+
+## GUI (optional)
+
+A basic GUI wrapper is available for quick runs, artifact browsing, PNG diagram preview, and a simple GraphML browser.
+
+- Launch: `code-crawler-gui`
+- Appearance: defaults to a dark theme for comfortable viewing.
+- Run tab: select input, optional config/include/ignore, output directory, renderer mode, and PNG toggle.
+- Artifacts tab: lists latest run artifacts; previews PNG diagrams inline; opens files externally otherwise.
+- Graph tab: loads GraphML from the latest run and lists nodes and neighbors.
+
+Note: the GUI prefers PNG diagrams for inline preview. If `defusedxml` is unavailable, the Graph tab will prompt you to install it.
+
+## Windows notes
+
+- Prefer Scoop for non-admin installs (`scoop install plantuml graphviz`).
+- If using Chocolatey, run an elevated PowerShell for installs.
+- Mermaid renders via `npx` automatically when the global CLI isn’t found; no admin install required.
+- If you ever see a cache parsing error, delete `code_crawler_runs/cache_index.txt` or run with `--no-incremental`. The loader now skips malformed lines automatically and the runner falls back if the cache can’t be read.
 
 ## Makefile Targets
 

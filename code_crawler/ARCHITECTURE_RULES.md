@@ -1,6 +1,7 @@
-### Overview
+# Overview
 
 This document defines a generic full-stack app template focusing on architectural strategies:
+
 - modular monolith with microservices decoupling layered clean architecture (presentation, application, domain, infrastructure).
 - Every project must be designed first conceptually from the Top-down. Then ask:
       - "Given this end goal concept, what axiomatic primitives, data structures, algorithms, and pipelines will be required necessary and optimal to build this project as conceptually defined?"
@@ -8,7 +9,7 @@ This document defines a generic full-stack app template focusing on architectura
 - Bottom-up: Build from primitives (data structures, algorithms).
 - Ensure extended future scalability, stability + flexibility, maintainability via loose coupling, high cohesion.
 
-### EXAMPLE ONLY Project Map of an agentic AI project following the Hybrid Clean Architecture in Python
+## EXAMPLE ONLY Project Map of an agentic AI project following the Hybrid Clean Architecture in Python
 
 ```go
 agentic-tools/
@@ -88,7 +89,7 @@ agentic-tools/
 
 ### Hybrid-Clean Architecture Implementation
 
-This section documents the Hybrid-Clean Architecture approach, combining modular monolith design with Clean Architecture principles. 
+This section documents the Hybrid-Clean Architecture approach, combining modular monolith design with Clean Architecture principles.
 This serves as a generic template for implementing scalable, maintainable applications across projects.
 
 #### Core Principles
@@ -160,14 +161,14 @@ This serves as a generic template for implementing scalable, maintainable applic
    - **Parameters**: Any and all static or default parameters must be kept alongside the central configurations within the config/ directory.
      This can be an individual yaml, json, or other type of file that contains all otherwise hard-coded parameter defaults or constants.
      If it is more suitable for the parameter to be an environment variable, then store it in an .env and make sure that file is in the .gitignore listing.
-     
+
 7. **Documentation and Assets**
    - **Code Documentation**: Code documentation is of first class order in this architecture.
      Every method, function, class, and file must have professional, easy to understand, readable documentation.
      Comments are helpful to explain gaps that aren't necessarily suitable for docstrings or headers.
      - **Project Documentation**: The central location for the code docs, notebooks, in depth guides, and tutorials belong within the docs/ folder at the project root.
        (some exceptions may apply, see Layer Structure / item #6 / Config / for more details on this).
-       
+
 #### Interfaces, Contracts, and API Requirements
 
 - Contract location and purity
@@ -228,7 +229,7 @@ This serves as a generic template for implementing scalable, maintainable applic
 
 - Enforcement notes
   - Static checks (imports/architecture rules) SHOULD block outer→inner violations and domain leaks to Presentation.
-  - Contract test suites MUST run in CI; adapters cannot be merged unless they pass the port compliance tests.       
+  - Contract test suites MUST run in CI; adapters cannot be merged unless they pass the port compliance tests.
 
 #### Dependency Flow
 

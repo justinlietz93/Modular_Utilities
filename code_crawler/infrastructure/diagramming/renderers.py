@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import shutil
-import subprocess
+import subprocess  # nosec B404
 from pathlib import Path
 from typing import Dict, List, Sequence
 
@@ -21,15 +21,26 @@ class LocalDiagramRenderer:
         self._mermaid_cli = shutil.which("mmdc")
         self._plantuml_cli = shutil.which("plantuml")
         self._graphviz_cli = shutil.which("dot")
+        # Allow ephemeral execution via npx for Mermaid CLI (avoids global install)
+        self._npx = shutil.which("npx")
 
     def probe(self) -> Sequence[DiagramProbeResult]:
+        mermaid_available = bool(self._mermaid_cli or self._npx)
+        if self._mermaid_cli:
+            mermaid_details = self._probe_message(
+                "Mermaid CLI (mmdc)", self._mermaid_cli, "npm install -g @mermaid-js/mermaid-cli"
+            )
+        elif self._npx:
+            mermaid_details = "Mermaid CLI available via npx (@mermaid-js/mermaid-cli)."
+        else:
+            mermaid_details = self._probe_message(
+                "Mermaid CLI (mmdc)", None, "npm install -g @mermaid-js/mermaid-cli"
+            )
         return [
             DiagramProbeResult(
                 format=DiagramFormat.MERMAID,
-                available=bool(self._mermaid_cli),
-                details=self._probe_message(
-                    "Mermaid CLI (mmdc)", self._mermaid_cli, "npm install -g @mermaid-js/mermaid-cli"
-                ),
+                available=mermaid_available,
+                details=mermaid_details,
             ),
             DiagramProbeResult(
                 format=DiagramFormat.PLANTUML,
@@ -83,21 +94,36 @@ class LocalDiagramRenderer:
         diagnostics: Dict[str, object],
     ) -> Path:
         target = output_directory / f"{source_path.stem}.svg"
-        if template.format == DiagramFormat.MERMAID and self._mermaid_cli:
-            self._execute([self._mermaid_cli, "-i", str(source_path), "-o", str(target)])
-            diagnostics["used_cli"] = True
-            return target
+        if template.format == DiagramFormat.MERMAID:
+            if self._mermaid_cli:
+                ok, err = self._try_run([self._mermaid_cli, "-i", str(source_path), "-o", str(target)])
+                if ok and target.exists() and target.stat().st_size > 0:
+                    diagnostics["used_cli"] = True
+                    return target
+                diagnostics["mermaid_error"] = err
+            if self._npx:
+                # Use npx to run the Mermaid CLI without global install
+                ok, err = self._try_run([self._npx, "-y", "@mermaid-js/mermaid-cli", "-i", str(source_path), "-o", str(target)])
+                if ok and target.exists() and target.stat().st_size > 0:
+                    diagnostics["used_cli"] = True
+                    diagnostics["used_npx"] = True
+                    return target
+                diagnostics["mermaid_error"] = err
         if template.format == DiagramFormat.PLANTUML and self._plantuml_cli:
-            self._execute([self._plantuml_cli, "-tsvg", str(source_path)])
-            cli_target = source_path.with_suffix(".svg")
-            if cli_target.exists():
-                cli_target.replace(target)
-            diagnostics["used_cli"] = True
-            return target
+            ok, err = self._try_run([self._plantuml_cli, "-tsvg", str(source_path)])
+            if ok:
+                cli_target = source_path.with_suffix(".svg")
+                if cli_target.exists() and cli_target.stat().st_size > 0:
+                    cli_target.replace(target)
+                diagnostics["used_cli"] = True
+                return target
+            diagnostics["plantuml_error"] = err
         if template.format == DiagramFormat.GRAPHVIZ and self._graphviz_cli:
-            self._execute([self._graphviz_cli, "-Tsvg", str(source_path), "-o", str(target)])
-            diagnostics["used_cli"] = True
-            return target
+            ok, err = self._try_run([self._graphviz_cli, "-Tsvg", str(source_path), "-o", str(target)])
+            if ok and target.exists() and target.stat().st_size > 0:
+                diagnostics["used_cli"] = True
+                return target
+            diagnostics["graphviz_error"] = err
         diagnostics["fallback"] = True
         target.write_text(_fallback_svg(template), encoding="utf-8")
         return target
@@ -110,21 +136,35 @@ class LocalDiagramRenderer:
         diagnostics: Dict[str, object],
     ) -> Path:
         target = output_directory / f"{source_path.stem}.png"
-        if template.format == DiagramFormat.MERMAID and self._mermaid_cli:
-            self._execute([self._mermaid_cli, "-i", str(source_path), "-o", str(target)])
-            diagnostics["used_cli"] = True
-            return target
+        if template.format == DiagramFormat.MERMAID:
+            if self._mermaid_cli:
+                ok, err = self._try_run([self._mermaid_cli, "-i", str(source_path), "-o", str(target)])
+                if ok and target.exists() and target.stat().st_size > 0:
+                    diagnostics["used_cli"] = True
+                    return target
+                diagnostics["mermaid_error"] = err
+            if self._npx:
+                ok, err = self._try_run([self._npx, "-y", "@mermaid-js/mermaid-cli", "-i", str(source_path), "-o", str(target)])
+                if ok and target.exists() and target.stat().st_size > 0:
+                    diagnostics["used_cli"] = True
+                    diagnostics["used_npx"] = True
+                    return target
+                diagnostics["mermaid_error"] = err
         if template.format == DiagramFormat.PLANTUML and self._plantuml_cli:
-            self._execute([self._plantuml_cli, "-tpng", str(source_path)])
-            cli_target = source_path.with_suffix(".png")
-            if cli_target.exists():
-                cli_target.replace(target)
-            diagnostics["used_cli"] = True
-            return target
+            ok, err = self._try_run([self._plantuml_cli, "-tpng", str(source_path)])
+            if ok:
+                cli_target = source_path.with_suffix(".png")
+                if cli_target.exists() and cli_target.stat().st_size > 0:
+                    cli_target.replace(target)
+                diagnostics["used_cli"] = True
+                return target
+            diagnostics["plantuml_error"] = err
         if template.format == DiagramFormat.GRAPHVIZ and self._graphviz_cli:
-            self._execute([self._graphviz_cli, "-Tpng", str(source_path), "-o", str(target)])
-            diagnostics["used_cli"] = True
-            return target
+            ok, err = self._try_run([self._graphviz_cli, "-Tpng", str(source_path), "-o", str(target)])
+            if ok and target.exists() and target.stat().st_size > 0:
+                diagnostics["used_cli"] = True
+                return target
+            diagnostics["graphviz_error"] = err
         diagnostics["fallback"] = True
         target.write_bytes(_fallback_png(template))
         return target
@@ -146,9 +186,16 @@ class LocalDiagramRenderer:
         return f"{tool} unavailable. Install via: {remediation}" \
             " or rely on built-in fallback renderer."
 
-    @staticmethod
-    def _execute(command: List[str]) -> None:
-        subprocess.run(command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    def _try_run(self, command: List[str]) -> tuple[bool, str]:
+        """Run a command safely; return (ok, stderr_text). Never raises; caller decides on fallback."""
+        proc = subprocess.run(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+        )  # nosec B603
+        return (proc.returncode == 0, proc.stderr or "")
 
 
 def _fallback_svg(template: DiagramTemplate) -> str:
