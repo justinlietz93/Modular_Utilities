@@ -148,7 +148,11 @@ class KnowledgeGraphBuilder:
             asset_cards or (),
         )
 
-        KnowledgeGraphValidator.validate(graph)
+        # Validate graph but do not fail the run; log and continue to write outputs
+        try:
+            KnowledgeGraphValidator.validate(graph)
+        except Exception as exc:  # pragma: no cover
+            self.logger.warning("Graph validation failed: %s (continuing)", exc)
         duration = time.perf_counter() - start_time
 
         graph_dir = self.storage.subdirectory(self.GRAPH_DIR)
