@@ -1,0 +1,3 @@
+# This is the include file. Use it just like an ignore file.
+# You do NOT need to put ! in front
+*.md
