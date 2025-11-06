@@ -2,12 +2,13 @@
 from __future__ import annotations
 
 import ast
-import fnmatch
 import os
 from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
 from typing import Dict, Iterable, Iterator, List, Tuple
+
+from pathspec import PathSpec
 
 from ..domain.configuration import CrawlerConfig
 from ..domain.knowledge_graph import NodeType
@@ -52,6 +53,10 @@ class SourceWalker:
         self.root = config.sources.root
         self.include = [pattern for pattern in config.sources.include if pattern]
         self.ignore = [pattern for pattern in config.sources.ignore if pattern]
+        # Build .gitignore-style specs (GitWildMatch) for include/ignore lists.
+        # These accept '!', '**', '/', trailing '/' for dirs, etc.
+        self._ignore_spec = PathSpec.from_lines("gitwildmatch", self.ignore) if self.ignore else None
+        self._include_spec = PathSpec.from_lines("gitwildmatch", self.include) if self.include else None
         self._event_extractor = EventExtractor()
 
     def walk(self) -> Tuple[List[FileRecord], DeltaReport]:
@@ -104,26 +109,40 @@ class SourceWalker:
     def _iter_files(self) -> Iterator[Path]:
         for dirpath, dirnames, filenames in os.walk(self.root, followlinks=self.config.sources.follow_symlinks):
             dirpath = Path(dirpath)
-            dirnames[:] = [
-                d
-                for d in dirnames
-                if not self._is_ignored((dirpath / d).relative_to(self.root))
-            ]
+            # Prune directories that are ignored; do not prune based on include patterns to avoid false negatives.
+            pruned: List[str] = []
+            for d in list(dirnames):
+                rel_dir = (dirpath / d).relative_to(self.root)
+                if self._is_ignored(rel_dir, is_dir=True):
+                    pruned.append(d)
+            if pruned:
+                dirnames[:] = [d for d in dirnames if d not in pruned]
             for filename in filenames:
                 path = dirpath / filename
                 relative = path.relative_to(self.root)
-                if self._is_ignored(relative):
+                if self._is_ignored(relative, is_dir=False):
                     continue
-                if self.include and not any(fnmatch.fnmatch(relative.as_posix(), pattern) for pattern in self.include):
+                if not self._is_included(relative):
                     continue
                 yield path
 
-    def _is_ignored(self, relative: Path) -> bool:
+    def _is_ignored(self, relative: Path, is_dir: bool) -> bool:
+        if not self._ignore_spec:
+            return False
         posix = relative.as_posix()
-        for pattern in self.ignore:
-            if fnmatch.fnmatch(posix, pattern):
-                return True
-        return False
+        # Directory-only patterns with trailing '/' should match the directory path as such
+        if is_dir and not posix.endswith('/'):
+            posix_dir = posix + '/'
+        else:
+            posix_dir = posix
+        return self._ignore_spec.match_file(posix_dir)
+
+    def _is_included(self, relative: Path) -> bool:
+        # If no include patterns, include everything by default
+        if not self._include_spec:
+            return True
+        posix = relative.as_posix()
+        return self._include_spec.match_file(posix)
 
     @staticmethod
     def _hash_file(path: Path) -> str:
@@ -158,12 +177,27 @@ def load_cache(index_path: Path) -> Dict[str, Dict[str, object]]:
     if not index_path.exists():
         return {}
     cache: Dict[str, Dict[str, object]] = {}
-    for line in index_path.read_text(encoding="utf-8").splitlines():
-        identifier, digest, size, modified = line.split("|")
+    for raw in index_path.read_text(encoding="utf-8", errors="ignore").splitlines():
+        line = raw.strip()
+        # Skip empty lines and simple comments to be robust against manual edits/corruption
+        if not line or line.startswith("#"):
+            continue
+        parts = line.split("|")
+        # Expect at least 4 parts: identifier|hash|size|modified
+        if len(parts) < 4:
+            # Malformed line; skip it instead of failing the entire run
+            continue
+        identifier, digest, size_str, modified_str = parts[0], parts[1], parts[2], parts[3]
+        try:
+            size = int(size_str)
+            modified = float(modified_str)
+        except (TypeError, ValueError):
+            # Skip entries that can't be parsed cleanly
+            continue
         cache[identifier] = {
             "hash": digest,
-            "size": int(size),
-            "modified": float(modified),
+            "size": size,
+            "modified": modified,
         }
     return cache
 
