@@ -1,8 +1,24 @@
-"""Application services for diagram template generation and rendering."""
+"""Application services for diagram template generation and rendering.
+
+Adds an optional interactive prompt to help install missing local renderers
+when running in an interactive terminal. If a renderer (Mermaid CLI, PlantUML,
+Graphviz) is unavailable and diagrams are enabled, the user is asked:
+
+    "{tool} is not installed, install now? Y/N, -Y for all or -N for all"
+
+Responding with "-Y" applies "Yes" to all remaining tools; "-N" applies "No".
+On non-interactive sessions (e.g., CI) the prompt is skipped and warnings are
+logged as before, relying on deterministic fallback renderers.
+"""
 from __future__ import annotations
 
 import json
 from dataclasses import dataclass, replace
+import os
+import shutil
+import subprocess  # nosec B404
+import sys
+import ctypes
 from pathlib import Path
 from typing import Dict, List, Mapping, MutableMapping, Optional, Protocol, Sequence
 
@@ -225,12 +241,21 @@ class DiagramGenerator:
 
     def generate(self, graph: KnowledgeGraph) -> DiagramArtifacts:
         renderer = self.renderer or _resolve_renderer()
+        # Probe installed renderers
         probes = renderer.probe()
-        for probe in probes:
-            level = "info" if probe.available else "warning"
-            getattr(self.logger, level)(
-                "Renderer %s availability: %s", probe.format.value, probe.details
-            )
+        # Optionally offer to install missing renderers when interactive or forced by env
+        probes = self._maybe_offer_installs(probes)
+        # Recreate renderer to pick up any new installs
+        renderer = self.renderer or _resolve_renderer()
+        probes = renderer.probe()
+        # Quiet availability logs if user explicitly disabled installs/prompts
+        _install_mode = os.environ.get("CODE_CRAWLER_INSTALL_RENDERERS", "").strip().lower()
+        if _install_mode != "no":
+            for probe in probes:
+                level = "info" if probe.available else "warning"
+                getattr(self.logger, level)(
+                    "Renderer %s availability: %s", probe.format.value, probe.details
+                )
 
         themes = self._resolve_themes()
         templates: List[DiagramTemplate] = []
@@ -349,6 +374,72 @@ class DiagramGenerator:
             json.dumps(digests, indent=2), encoding="utf-8"
         )
 
+    # --- Interactive installer helpers ---
+    def _maybe_offer_installs(self, probes: Sequence[DiagramProbeResult]) -> Sequence[DiagramProbeResult]:
+        """If running interactively and diagrams are enabled, prompt to install missing tools.
+
+        Returns a fresh probe list if installs occurred, else the original list.
+        """
+        # Environment override takes precedence: CODE_CRAWLER_INSTALL_RENDERERS
+        mode = os.environ.get("CODE_CRAWLER_INSTALL_RENDERERS", "").strip().lower()
+        try:
+            interactive = sys.stdin.isatty() and sys.stdout.isatty()
+        except Exception:
+            interactive = False
+
+        if mode == "no":
+            return probes
+        if mode not in {"yes", "ask"}:
+            # Default behavior: ask in interactive shells; otherwise skip
+            if not interactive:
+                return probes
+
+        missing = [p for p in probes if not p.available]
+        if not missing:
+            return probes
+
+        # If mode == 'yes', apply Yes to all without prompting
+        apply_all: str | None = "Y" if mode == "yes" else None  # "Y" or "N" when -Y/-N chosen
+        installed_any = False
+
+        for p in missing:
+            tool_label, installer = _installer_for_probe(p)
+            if not installer:
+                # We don't know how to install; just continue
+                continue
+            answer = None
+            if apply_all:
+                answer = apply_all
+            else:
+                prompt = f"{tool_label} is not installed, install now? Y/N, -Y for all or -N for all: "
+                try:
+                    raw = input(prompt).strip()
+                except EOFError:
+                    raw = "N"
+                if raw in {"Y", "y", "N", "n", "-Y", "-y", "-N", "-n"}:
+                    if raw.startswith("-"):
+                        apply_all = raw[1:].upper()
+                        answer = apply_all
+                    else:
+                        answer = raw.upper()
+                else:
+                    answer = "N"
+
+            if answer == "Y":
+                try:
+                    self.logger.info("Attempting to install %s...", tool_label)
+                    installer(self.logger)
+                    installed_any = True
+                except Exception as e:
+                    self.logger.warning("Installer for %s failed: %s", tool_label, e)
+
+        if installed_any:
+            # Return a fresh probe list to reflect new availability
+            from ..infrastructure.diagramming.renderers import LocalDiagramRenderer
+
+            return LocalDiagramRenderer().probe()
+        return probes
+
 
 def _resolve_renderer() -> DiagramRendererPort:
     from ..infrastructure.diagramming.renderers import LocalDiagramRenderer
@@ -364,4 +455,77 @@ def _relationships_of_type(
     graph: KnowledgeGraph, relationship_type: RelationshipType
 ) -> List[Relationship]:
     return [rel for rel in graph.sorted_relationships() if rel.type == relationship_type]
+
+
+# --- Platform-aware installer helpers ---
+def _installer_for_probe(probe: DiagramProbeResult):
+    """Return a (label, installer_fn|None) tuple for a given missing probe."""
+    if probe.format == DiagramFormat.MERMAID:
+        return ("Mermaid CLI (mmdc)", _install_mermaid)
+    if probe.format == DiagramFormat.PLANTUML:
+        return ("PlantUML", _install_plantuml)
+    if probe.format == DiagramFormat.GRAPHVIZ:
+        return ("Graphviz dot", _install_graphviz)
+    return (probe.format.value, None)
+
+
+def _install_mermaid(logger) -> None:
+    npm = shutil.which("npm")
+    if not npm:
+        logger.warning(
+            "npm was not found on PATH. Please install Node.js, then run: npm install -g @mermaid-js/mermaid-cli"
+        )
+        raise RuntimeError("npm not available")
+    subprocess.check_call([npm, "install", "-g", "@mermaid-js/mermaid-cli"])  # nosec B603
+
+
+def _install_plantuml(logger) -> None:
+    # Prefer Windows-friendly managers if present
+    scoop = shutil.which("scoop")
+    choco = shutil.which("choco")
+    if scoop:
+        subprocess.check_call([scoop, "install", "plantuml"])  # nosec B603
+        return
+    if choco:
+        if _is_admin():
+            subprocess.check_call([choco, "install", "plantuml", "-y"])  # nosec B603
+            return
+        logger.warning(
+            "Chocolatey detected but shell is not elevated. Please run an Administrator PowerShell and execute: choco install plantuml -y"
+        )
+        raise RuntimeError("chocolatey not elevated")
+    # Fallback: print guidance for macOS/Linux
+    logger.warning(
+        "Could not find an automatic installer (scoop/choco). Install PlantUML manually: brew install plantuml | scoop install plantuml"
+    )
+    raise RuntimeError("no supported installer found")
+
+
+def _install_graphviz(logger) -> None:
+    scoop = shutil.which("scoop")
+    choco = shutil.which("choco")
+    if scoop:
+        subprocess.check_call([scoop, "install", "graphviz"])  # nosec B603
+        return
+    if choco:
+        if _is_admin():
+            subprocess.check_call([choco, "install", "graphviz", "-y"])  # nosec B603
+            return
+        logger.warning(
+            "Chocolatey detected but shell is not elevated. Please run an Administrator PowerShell and execute: choco install graphviz -y"
+        )
+        raise RuntimeError("chocolatey not elevated")
+    logger.warning(
+        "Could not find an automatic installer (scoop/choco). Install Graphviz manually: apt install graphviz | brew install graphviz | scoop install graphviz"
+    )
+    raise RuntimeError("no supported installer found")
+
+
+def _is_admin() -> bool:
+    if os.name != "nt":
+        return os.geteuid() == 0 if hasattr(os, "geteuid") else False
+    try:
+        return bool(ctypes.windll.shell32.IsUserAnAdmin())
+    except Exception:
+        return False
 
