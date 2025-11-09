@@ -24,7 +24,8 @@ class FunctionGenerator:
         variables: List[str],
         metadata: ExpressionMetadata,
         expression_str: str,
-        function_name: Optional[str] = None
+        function_name: Optional[str] = None,
+        language: str = "python"
     ) -> GeneratedFunction:
         """
         Generate a function from expression.
@@ -33,8 +34,9 @@ class FunctionGenerator:
             expr: SymPy expression (or None if parse failed)
             variables: List of parameter names
             metadata: Expression metadata
-            expression_str: Python code string for expression
+            expression_str: Code string for expression in target language
             function_name: Optional custom function name
+            language: Target language (default: python)
             
         Returns:
             GeneratedFunction object
@@ -54,7 +56,8 @@ class FunctionGenerator:
             parameters=variables,
             expression_str=expression_str,
             docstring=docstring,
-            metadata=metadata
+            metadata=metadata,
+            language=language
         )
         
         return func
