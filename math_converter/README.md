@@ -1,11 +1,12 @@
 # Math Syntax Converter
 
-A simple CLI tool for converting math syntax between different formats: LaTeX, MathJax (GitHub-friendly), ASCII, and Unicode. Also extracts math equations from PDF files.
+A powerful CLI tool for converting math syntax between different formats: LaTeX, MathJax (GitHub-friendly), ASCII, and Unicode. Also extracts math equations from PDF files and generates executable Python code from mathematical expressions.
 
 ## Features
 
 - 🔄 Convert between LaTeX, MathJax, ASCII, and Unicode math syntaxes
 - 📄 Extract math equations from PDF files (research papers, books, etc.)
+- 🐍 **NEW:** Generate Python code libraries from extracted math expressions
 - 📁 Process single files or entire directories
 - 🎯 In-place conversion or output to separate directory
 - 🤖 Smart interactive prompts when options are missing
@@ -223,6 +224,83 @@ $$\sum_{i=1}^n i = \frac{n(n+1)}{2}$$
 
 **Append mode**: If you run the same command again or extract from another PDF to the same file, it automatically appends with a separator.
 
+### Code Generation from PDFs
+
+**NEW:** Generate executable Python code from mathematical expressions in PDFs:
+
+```bash
+# Extract math from PDF and generate Python functions
+convert-math --input research-paper.pdf --codegen python --codegen-output generated/
+
+# Use sequential naming for functions
+convert-math --input paper.pdf --codegen python --naming-strategy sequential
+
+# Simplify expressions before generating code
+convert-math --input paper.pdf --codegen python --simplify
+```
+
+The code generator:
+- Extracts LaTeX expressions from PDF
+- Parses them using SymPy
+- Generates callable Python functions with proper parameters
+- Creates a module with all functions, docstrings, and metadata
+- Exports a symbol matrix (JSON) tracking all variables
+- Logs any expressions that failed to parse
+
+**Generated files:**
+- `{name}_lib.py` - The Python module with generated functions
+- `{name}_lib.symbols.json` - Symbol registry with variable tracking
+- `{name}_lib.metadata.json` - Metadata about all generated functions
+- `failed_expressions.txt` - Log of expressions that couldn't be parsed
+
+**Example output:**
+
+Given a PDF with expressions like `x + y` and `a^2 + b^2`, generates:
+
+```python
+def expr_0(x, y):
+    """Generated mathematical function.
+    
+    Original: x + y
+    Page: 1
+    
+    Parameters:
+        x: numeric value
+        y: numeric value
+    
+    Returns:
+        Evaluated expression result"""
+    return x + y
+
+def expr_1(a, b):
+    """Generated mathematical function.
+    
+    Original: a^2 + b^2
+    Page: 2
+    
+    Parameters:
+        a: numeric value
+        b: numeric value
+    
+    Returns:
+        Evaluated expression result"""
+    return a**2 + b**2
+```
+
+You can then import and use the generated module:
+
+```python
+from generated.paper_lib import expr_0, expr_1
+
+result = expr_0(2, 3)  # Returns 5
+result = expr_1(3, 4)  # Returns 25
+```
+
+**Naming Strategies:**
+- `hash` (default): Generates function names with hash-based suffixes (e.g., `expr_a1b2c3d4`)
+- `sequential`: Simple sequential numbering (e.g., `expr_0`, `expr_1`, ...)
+- `semantic`: Attempts to derive meaningful names from expressions (future enhancement)
+
 ## Architecture
 
 The converter follows a clean architecture pattern:
@@ -230,7 +308,17 @@ The converter follows a clean architecture pattern:
 ```
 math_converter/
 ├── domain/           # Core models and types
-├── application/      # Business logic (conversion engine, file processor)
+│   ├── syntax_types.py     # Syntax conversion types
+│   └── codegen_types.py    # Code generation types
+├── application/      # Business logic
+│   ├── converter.py          # Syntax conversion engine
+│   ├── file_processor.py    # File processing
+│   ├── pdf_extractor.py     # PDF math extraction
+│   ├── expression_pipeline.py  # LaTeX parsing pipeline
+│   ├── symbol_registry.py      # Variable name management
+│   ├── function_generator.py   # Function code generation
+│   ├── library_assembler.py    # Module assembly
+│   └── codegen_orchestrator.py # Code generation orchestration
 ├── infrastructure/   # External integrations
 └── presentation/     # CLI interface
 ```
@@ -238,7 +326,7 @@ math_converter/
 ## Dependencies
 
 - **Python 3.10+**
-- **SymPy**: For accurate mathematical parsing and conversion
+- **SymPy**: For accurate mathematical parsing, conversion, and code generation
 - **PyMuPDF** (optional): For PDF extraction (`pip install -e ".[pdf]"`)
 
 ## Development
@@ -249,6 +337,14 @@ math_converter/
 pytest tests/math_converter/ -v
 ```
 
+All 86 tests should pass, including:
+- 33 tests for syntax conversion
+- 9 tests for codegen types
+- 11 tests for symbol registry
+- 16 tests for expression pipeline
+- 11 tests for function generator
+- 7 tests for codegen integration
+
 ### Adding New Syntax Types
 
 1. Add new type to `SyntaxType` enum in `domain/syntax_types.py`
@@ -256,12 +352,22 @@ pytest tests/math_converter/ -v
 3. Register converters in `_register_converters()`
 4. Add tests
 
+### Adding Code Generation Features
+
+1. Core pipeline: `expression_pipeline.py` handles LaTeX → SymPy parsing
+2. Symbol naming: `symbol_registry.py` manages variable name generation
+3. Function creation: `function_generator.py` generates Python function code
+4. Module assembly: `library_assembler.py` creates complete module files
+5. Orchestration: `codegen_orchestrator.py` coordinates the full pipeline
+
 ## Limitations
 
 - Directory scanning is non-recursive by default
 - Some complex LaTeX expressions may not convert perfectly
 - ASCII conversion depends on SymPy's ability to parse the expression
 - Not all Unicode symbols are supported
+- Code generation currently supports Python only (multi-language support planned)
+- Expression simplification is optional and may change expression semantics
 
 ## Contributing
 

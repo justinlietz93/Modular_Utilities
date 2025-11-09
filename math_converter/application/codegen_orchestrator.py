@@ -1,7 +1,7 @@
 """Code generation orchestrator."""
 from pathlib import Path
-from typing import List, Optional, Tuple
-from ..domain.codegen_types import CodegenConfig, GeneratedFunction, ExpressionMetadata
+from typing import List, Tuple
+from ..domain.codegen_types import CodegenConfig
 from .expression_pipeline import ExpressionPipeline
 from .symbol_registry import SymbolRegistry
 from .function_generator import FunctionGenerator
@@ -121,7 +121,7 @@ class CodegenOrchestrator:
         )
         
         # Report results
-        print(f"\n✓ Code generation complete!")
+        print("\n✓ Code generation complete!")
         print(f"  Module: {output_path}")
         print(f"  Functions generated: {len(functions)}")
         print(f"  Successful: {self.successful_count}")

@@ -1,7 +1,7 @@
 """Library assembler for generating complete module files."""
 import json
 from pathlib import Path
-from typing import List, Dict
+from typing import List
 from ..domain.codegen_types import GeneratedFunction
 from .symbol_registry import SymbolRegistry
 
