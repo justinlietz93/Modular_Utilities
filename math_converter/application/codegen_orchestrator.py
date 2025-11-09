@@ -5,7 +5,7 @@ from ..domain.codegen_types import CodegenConfig
 from .expression_pipeline import ExpressionPipeline
 from .symbol_registry import SymbolRegistry
 from .function_generator import FunctionGenerator
-from .library_assembler import LibraryAssembler
+from .backends.registry import get_backend, is_supported
 
 
 class CodegenOrchestrator:
@@ -22,7 +22,11 @@ class CodegenOrchestrator:
         self.pipeline = ExpressionPipeline(simplify=config.simplify)
         self.symbol_registry = SymbolRegistry(naming_strategy=config.naming_strategy)
         self.function_generator = FunctionGenerator(naming_strategy=config.naming_strategy)
-        self.assembler = LibraryAssembler()
+        
+        # Get the appropriate backend
+        self.backend = get_backend(config.target_language)
+        if self.backend is None:
+            raise ValueError(f"Unsupported target language: {config.target_language}")
         
         self.successful_count = 0
         self.failed_count = 0
@@ -92,15 +96,16 @@ class CodegenOrchestrator:
                     source_info={'expression_id': source_info['id']}
                 )
             
-            # Convert to Python code
-            expr_str = self.pipeline.expression_to_python(expr)
+            # Convert to target language code
+            expr_str = self.backend.convert_expression_to_code(expr, variables)
             
             # Generate function
             func = self.function_generator.generate_function(
                 expr,
                 variables,
                 metadata,
-                expr_str
+                expr_str,
+                language=self.config.target_language
             )
             
             functions.append(func)
@@ -110,29 +115,91 @@ class CodegenOrchestrator:
             print("Error: No expressions could be successfully parsed.")
             return False
         
-        # Assemble and save module
-        print(f"Generating module: {output_path}")
-        self.assembler.save_module(
-            functions,
-            output_path,
-            module_name=module_name,
-            export_symbol_matrix=self.config.export_symbol_matrix,
-            symbol_registry=self.symbol_registry
-        )
+        # Assemble and save module using backend
+        print(f"Generating {self.config.target_language} module: {output_path}")
+        self._save_module(functions, output_path, module_name)
         
         # Report results
         print("\n✓ Code generation complete!")
+        print(f"  Language: {self.config.target_language}")
         print(f"  Module: {output_path}")
         print(f"  Functions generated: {len(functions)}")
         print(f"  Successful: {self.successful_count}")
         print(f"  Failed: {self.failed_count}")
         
         if self.config.export_symbol_matrix:
-            symbol_path = output_path.with_suffix('.symbols.json')
+            symbol_path = self._get_symbol_path(output_path)
             print(f"  Symbol matrix: {symbol_path}")
         
-        metadata_path = output_path.with_suffix('.metadata.json')
+        metadata_path = self._get_metadata_path(output_path)
         print(f"  Metadata: {metadata_path}")
+        
+        # Report failures if any
+        if self.failed_expressions:
+            failed_path = output_path.parent / "failed_expressions.txt"
+            self._save_failed_expressions(failed_path)
+            print(f"\n  Failed expressions logged to: {failed_path}")
+        
+        return True
+    
+    def _save_module(self, functions: List, output_path: Path, module_name: str):
+        """Save module using backend."""
+        # Ensure output directory exists
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        # Generate module code
+        module_code = self.backend.assemble_module(
+            functions,
+            module_name,
+            self.symbol_registry
+        )
+        
+        # Write to file
+        output_path.write_text(module_code, encoding='utf-8')
+        
+        # Export symbol matrix if requested
+        if self.config.export_symbol_matrix:
+            symbol_path = self._get_symbol_path(output_path)
+            self._export_symbol_matrix(symbol_path)
+        
+        # Export metadata
+        metadata_path = self._get_metadata_path(output_path)
+        self._export_metadata(functions, metadata_path)
+    
+    def _get_symbol_path(self, output_path: Path) -> Path:
+        """Get symbol matrix file path."""
+        return output_path.with_name(f"{output_path.stem}.symbols.json")
+    
+    def _get_metadata_path(self, output_path: Path) -> Path:
+        """Get metadata file path."""
+        return output_path.with_name(f"{output_path.stem}.metadata.json")
+    
+    def _export_symbol_matrix(self, output_path: Path):
+        """Export symbol matrix to JSON."""
+        import json
+        matrix = self.symbol_registry.export_to_dict()
+        
+        with output_path.open('w', encoding='utf-8') as f:
+            json.dump(matrix, f, indent=2)
+    
+    def _export_metadata(self, functions: List, output_path: Path):
+        """Export function metadata to JSON."""
+        import json
+        metadata = {
+            "language": self.config.target_language,
+            "function_count": len(functions),
+            "functions": [
+                {
+                    "name": func.name,
+                    "parameters": func.parameters,
+                    "metadata": func.metadata.to_dict()
+                }
+                for func in functions
+            ]
+        }
+        
+        with output_path.open('w', encoding='utf-8') as f:
+            json.dump(metadata, f, indent=2)
         
         # Report failures if any
         if self.failed_expressions:

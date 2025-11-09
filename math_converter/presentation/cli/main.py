@@ -146,8 +146,8 @@ Examples:
         '--codegen',
         dest='codegen',
         type=str,
-        choices=['python'],
-        help='Generate code in target language (currently only python supported)'
+        choices=['python', 'rust'],
+        help='Generate code in target language (python or rust)'
     )
     
     parser.add_argument(
@@ -213,7 +213,13 @@ Examples:
                 output_dir.mkdir(parents=True, exist_ok=True)
                 
                 module_name = input_path.stem.replace('-', '_').replace(' ', '_')
-                output_path = output_dir / f"{module_name}_lib.py"
+                
+                # Get file extension from backend
+                from math_converter.application.backends.registry import get_backend
+                backend = get_backend(args.codegen)
+                file_ext = backend.get_file_extension() if backend else ".py"
+                
+                output_path = output_dir / f"{module_name}_lib{file_ext}"
                 
                 success = orchestrator.process_expressions(
                     expressions,
