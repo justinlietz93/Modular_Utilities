@@ -1,6 +1,7 @@
 """CLI entry point for math syntax converter."""
 import argparse
 import sys
+from pathlib import Path
 from typing import Optional
 
 from ...domain.syntax_types import SyntaxType, ConversionRequest
@@ -66,15 +67,20 @@ def main():
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
         prog='convert-math',
-        description='Convert math syntax between LaTeX, MathJax, ASCII, and Unicode',
+        description='Convert math syntax between LaTeX, MathJax, ASCII, and Unicode, or extract math from PDFs',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
+  # Convert between syntax formats
   convert-math --from latex --to mathjax --input math_writeups/
   convert-math --from latex --to mathjax --input math_writeups/ --output-dir converted/
   convert-math --from latex --to mathjax
   convert-math --to mathjax
   convert-math --from latex
+  
+  # Extract math from PDF
+  convert-math --input research-paper.pdf --output research-equations.md
+  convert-math --input research-paper.pdf  # Creates research-paper.md
         """
     )
     
@@ -98,7 +104,14 @@ Examples:
         type=str,
         nargs='*',
         default=[],
-        help='Input file(s) or directory. Default: current directory'
+        help='Input file(s) or directory. Default: current directory. Supports PDF extraction.'
+    )
+    
+    parser.add_argument(
+        '--output',
+        dest='output_file',
+        type=str,
+        help='Output file for PDF extraction (defaults to input name with .md extension)'
     )
     
     parser.add_argument(
@@ -124,6 +137,23 @@ Examples:
     
     args = parser.parse_args()
     
+    # Check if input is a PDF file
+    processor = FileProcessor()
+    
+    if args.input_paths:
+        input_path = Path(args.input_paths[0]) if args.input_paths else None
+        
+        # Handle PDF extraction
+        if input_path and input_path.is_file() and processor.is_pdf_file(input_path):
+            # PDF extraction mode
+            output_path = None
+            if args.output_file:
+                output_path = Path(args.output_file)
+            
+            success = processor.process_pdf_extraction(input_path, output_path)
+            sys.exit(0 if success else 1)
+    
+    # Standard conversion mode
     # Parse syntax types
     from_syntax = None
     to_syntax = None

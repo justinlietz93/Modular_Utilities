@@ -4,6 +4,7 @@ from typing import List, Optional
 
 from ..domain.syntax_types import SyntaxType, ConversionRequest
 from .converter import ConversionEngine
+from .pdf_extractor import PDFExtractor
 
 
 class FileProcessor:
@@ -15,6 +16,59 @@ class FileProcessor:
     def __init__(self):
         """Initialize file processor."""
         self.engine = ConversionEngine()
+        self.pdf_extractor = PDFExtractor()
+    
+    def is_pdf_file(self, path: Path) -> bool:
+        """Check if file is a PDF."""
+        return path.suffix.lower() == '.pdf'
+    
+    def process_pdf_extraction(
+        self,
+        pdf_path: Path,
+        output_path: Optional[Path] = None
+    ) -> bool:
+        """
+        Extract math from PDF and save to file.
+        
+        Args:
+            pdf_path: Path to PDF file
+            output_path: Output file path (if None, creates based on PDF name)
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        if not self.pdf_extractor.is_available():
+            print("Error: PDF extraction requires PyMuPDF.")
+            print("Install with: pip install pymupdf")
+            return False
+        
+        try:
+            # Extract math expressions
+            print(f"Extracting math from {pdf_path}...")
+            expressions = self.pdf_extractor.extract_math_from_pdf(pdf_path)
+            
+            # Determine output path
+            if output_path is None:
+                output_path = pdf_path.with_suffix('.md')
+            
+            # Check if file exists for append mode
+            append = output_path.exists()
+            
+            # Save based on file extension
+            if output_path.suffix.lower() == '.md':
+                self.pdf_extractor.save_to_markdown(expressions, output_path, append)
+            else:
+                self.pdf_extractor.save_to_text(expressions, output_path, append)
+            
+            action = "Appended to" if append else "Created"
+            print(f"✓ {action} {output_path}")
+            print(f"  Extracted {len(expressions)} math expression(s)")
+            
+            return True
+            
+        except Exception as e:
+            print(f"Error extracting from PDF {pdf_path}: {e}")
+            return False
     
     def discover_files(self, input_paths: List[str]) -> List[Path]:
         """

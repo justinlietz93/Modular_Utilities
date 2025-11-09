@@ -1,10 +1,11 @@
 # Math Syntax Converter
 
-A simple CLI tool for converting math syntax between different formats: LaTeX, MathJax (GitHub-friendly), ASCII, and Unicode.
+A simple CLI tool for converting math syntax between different formats: LaTeX, MathJax (GitHub-friendly), ASCII, and Unicode. Also extracts math equations from PDF files.
 
 ## Features
 
 - 🔄 Convert between LaTeX, MathJax, ASCII, and Unicode math syntaxes
+- 📄 Extract math equations from PDF files (research papers, books, etc.)
 - 📁 Process single files or entire directories
 - 🎯 In-place conversion or output to separate directory
 - 🤖 Smart interactive prompts when options are missing
@@ -17,6 +18,12 @@ From the Modular Utilities repository root:
 
 ```bash
 pip install -e .
+```
+
+For PDF extraction support:
+
+```bash
+pip install -e ".[pdf]"
 ```
 
 This installs the `convert-math` command globally.
@@ -85,6 +92,29 @@ convert-math --from latex --to mathjax -Y
 convert-math --from latex --to mathjax --input math_docs/ -N
 ```
 
+### PDF Math Extraction
+
+Extract math equations from PDF files (requires `pip install -e ".[pdf]"`):
+
+```bash
+# Extract to markdown (default)
+convert-math --input research-paper.pdf --output research-equations.md
+
+# Auto-generates output file (research-paper.md)
+convert-math --input research-paper.pdf
+
+# Append to existing file
+convert-math --input another-paper.pdf --output research-equations.md
+```
+
+The tool intelligently detects PDF files and:
+- Extracts LaTeX-style math expressions (`\(...\)`, `\[...\]`, `$...$`, `$$...$$`)
+- Groups equations by page number
+- Supports both markdown and text output formats
+- Automatically appends if the output file already exists
+
+**Note:** PDF extraction quality depends on how the PDF was created. PDFs with text-based math work best.
+
 ## Supported Formats
 
 ### LaTeX
@@ -120,6 +150,7 @@ The converter processes files with these extensions:
 - `.txt` - Plain text
 - `.rst` - reStructuredText
 - `.html` - HTML
+- `.pdf` - PDF (extraction mode, requires pymupdf)
 
 ## Examples
 
@@ -169,6 +200,29 @@ convert-math --from unicode --to latex --input unicode_notes.md
 Before: `α + β = γ`
 After: `\alpha + \beta = \gamma`
 
+### Example 4: Extract Math from PDF
+
+Extract all math equations from a research paper:
+
+```bash
+convert-math --input research-paper.pdf --output equations.md
+```
+
+Sample output (`equations.md`):
+```markdown
+# Extracted Math Expressions
+
+## Page 1
+
+\[e^{i\pi} + 1 = 0\]
+
+\(a^2 + b^2 = c^2\)
+
+$$\sum_{i=1}^n i = \frac{n(n+1)}{2}$$
+```
+
+**Append mode**: If you run the same command again or extract from another PDF to the same file, it automatically appends with a separator.
+
 ## Architecture
 
 The converter follows a clean architecture pattern:
@@ -185,6 +239,7 @@ math_converter/
 
 - **Python 3.10+**
 - **SymPy**: For accurate mathematical parsing and conversion
+- **PyMuPDF** (optional): For PDF extraction (`pip install -e ".[pdf]"`)
 
 ## Development
 
