@@ -6,6 +6,7 @@ A CLI utility for building, querying, and managing knowledge graphs based on con
 
 - **Create and manage** multiple knowledge graphs
 - **Ingest content** from files and directories (with optional recursive parsing)
+- **Multi-format support**: Text files, Markdown, PDF documents, and images (with OCR)
 - **Semantic querying** using natural language queries
 - **Subgraph extraction** with configurable hop distance
 - **Metadata tracking** and statistics
@@ -13,6 +14,37 @@ A CLI utility for building, querying, and managing knowledge graphs based on con
 - **Query tracking** with SQLite database
 - **Configurable verbosity** levels
 - **Random exploration** for discovering connections
+
+## Installation
+
+### Basic Installation
+
+```bash
+pip install -e .
+```
+
+### With PDF Support
+
+```bash
+pip install -e ".[pdf]"
+```
+
+### With Image Support (OCR)
+
+```bash
+pip install -e ".[image]"
+```
+
+Note: Image OCR requires tesseract to be installed on your system:
+- Ubuntu/Debian: `sudo apt-get install tesseract-ocr`
+- macOS: `brew install tesseract`
+- Windows: Download from [GitHub](https://github.com/UB-Mannheim/tesseract/wiki)
+
+### With Both PDF and Image Support
+
+```bash
+pip install -e ".[multimodal]"
+```
 
 ## Quick Start
 
@@ -29,10 +61,20 @@ Ingest from a directory:
 knowledge-graph --input research-papers/ --graph-id my-research
 ```
 
-Ingest recursively:
+Ingest recursively (includes PDFs and images if dependencies are installed):
 ```bash
 knowledge-graph --input whole-folder/ --graph-id my-research --recursive
 ```
+
+### Supported File Formats
+
+The utility automatically detects and processes:
+- **Text files**: `.txt`, `.md`, `.markdown`, `.rst`, `.log`
+- **Code files**: `.py`, `.js`, `.java`, `.cpp`, `.c`, `.h`, `.sh`, `.bash`
+- **Data files**: `.json`, `.xml`, `.yaml`, `.yml`, `.csv`
+- **Documentation**: `.html`, `.css`, `.tex`, `.org`
+- **PDF documents**: `.pdf` (requires `pymupdf`)
+- **Images**: `.png`, `.jpg`, `.jpeg`, `.gif`, `.bmp`, `.tiff`, `.webp` (requires `pillow` and `pytesseract`)
 
 ### Query the Graph
 
@@ -139,18 +181,22 @@ knowledge-graph --settings --db on
 The knowledge graph utility follows a layered architecture:
 
 - **Domain**: Core models (GraphNode, KnowledgeGraph, QueryResult, etc.)
-- **Infrastructure**: Storage, similarity calculation, and database management
-- **Application**: Business logic services (GraphService, QueryService, PruningService, etc.)
+- **Infrastructure**: Storage, similarity calculation, text extraction (PDF, OCR), and database management
+- **Application**: Business logic services (GraphService, QueryService, PruningService, IngestionService, etc.)
 - **Presentation**: CLI interface
 
 ## How It Works
 
-1. **Ingestion**: Files are parsed and split into semantic chunks (paragraphs/sections)
-2. **Node Creation**: Each chunk becomes a node in the graph
-3. **Edge Creation**: Edges are created between similar nodes using TF-IDF and cosine similarity
-4. **Querying**: Queries use semantic similarity to rank and retrieve relevant nodes
-5. **Tracking**: Retrieval frequency and uniqueness are tracked for each node
-6. **Pruning**: Low-value nodes can be removed based on usage patterns
+1. **Ingestion**: Files are detected by type (text, PDF, image) and content is extracted accordingly
+   - Text files: Direct reading
+   - PDFs: Text extraction using PyMuPDF
+   - Images: OCR using Tesseract via pytesseract
+2. **Content Processing**: Extracted content is split into semantic chunks (paragraphs/sections)
+3. **Node Creation**: Each chunk becomes a node in the graph
+4. **Edge Creation**: Edges are created between similar nodes using TF-IDF and cosine similarity
+5. **Querying**: Queries use semantic similarity to rank and retrieve relevant nodes
+6. **Tracking**: Retrieval frequency and uniqueness are tracked for each node
+7. **Pruning**: Low-value nodes can be removed based on usage patterns
 
 ## Storage
 
@@ -162,13 +208,13 @@ Graphs are stored as JSON files in the `.knowledge_graphs` directory:
 
 ## Examples
 
-### Research Paper Management
+### Research Paper Management (with PDFs)
 
 ```bash
 # Create graph
 knowledge-graph --create --graph-id physics-research
 
-# Ingest papers
+# Ingest papers (including PDFs)
 knowledge-graph --input papers/ --graph-id physics-research --recursive
 
 # Query specific topic
@@ -180,6 +226,19 @@ knowledge-graph --query "dark matter" --subgraph dark-matter.json --hops 3
 
 # Get statistics
 knowledge-graph --metadata --graph-id physics-research
+```
+
+### Scanned Documents with OCR
+
+```bash
+# Create graph
+knowledge-graph --create --graph-id scanned-docs
+
+# Ingest scanned images and PDFs
+knowledge-graph --input scans/ --graph-id scanned-docs --recursive
+
+# Query extracted text
+knowledge-graph --query "invoice payment terms" --graph-id scanned-docs
 ```
 
 ### Code Documentation
@@ -204,7 +263,7 @@ knowledge-graph --query --random --graph-id codebase-docs
 - Graph visualization
 - Export formats (GraphML, Gephi, etc.)
 - Advanced query syntax
-- Multi-modal support (images, PDFs with OCR)
+- Enhanced multi-modal support (audio transcription, video frames)
 - Clustering and community detection
 - Time-based analysis
 
