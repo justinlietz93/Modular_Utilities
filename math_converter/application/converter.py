@@ -27,6 +27,10 @@ class ConversionEngine:
         self._converters[(SyntaxType.ASCII, SyntaxType.LATEX)] = self._ascii_to_latex
         self._converters[(SyntaxType.UNICODE, SyntaxType.LATEX)] = self._unicode_to_latex
         
+        # ASCII/Unicode cross-conversion
+        self._converters[(SyntaxType.ASCII, SyntaxType.UNICODE)] = self._ascii_to_unicode
+        self._converters[(SyntaxType.UNICODE, SyntaxType.ASCII)] = self._unicode_to_ascii
+        
         # MathJax to ASCII/Unicode
         self._converters[(SyntaxType.MATHJAX, SyntaxType.ASCII)] = self._mathjax_to_ascii
         self._converters[(SyntaxType.MATHJAX, SyntaxType.UNICODE)] = self._mathjax_to_unicode
@@ -212,3 +216,15 @@ class ConversionEngine:
         content = re.sub(r'\\\[(.*?)\\\]', r'\1', content, flags=re.DOTALL)
         
         return content
+    
+    def _ascii_to_unicode(self, content: str) -> str:
+        """Convert ASCII math to Unicode representation."""
+        # Convert via LaTeX as intermediate
+        latex_content = self._ascii_to_latex(content)
+        return self._latex_to_unicode(latex_content)
+    
+    def _unicode_to_ascii(self, content: str) -> str:
+        """Convert Unicode math to ASCII representation."""
+        # Convert via LaTeX as intermediate
+        latex_content = self._unicode_to_latex(content)
+        return self._latex_to_ascii(latex_content)
