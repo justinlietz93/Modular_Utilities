@@ -24,6 +24,11 @@ If you’re a developer looking to improve your workflow, or a curious reader ex
   - Generates structured metadata (indexes, summaries, references) for your repo.
   - Useful for code navigation, documentation, code search, embeddings pipelines, and LLM-augmented tooling.
 
+- Math Syntax Converter
+  - Convert between LaTeX, MathJax (GitHub-friendly), ASCII, and Unicode math syntaxes.
+  - Simple CLI tool for batch processing files or directories.
+  - Perfect for converting LaTeX documents to GitHub-friendly markdown.
+
 - Universal LLM Providers (Plug-and-Play)
   - Unified interface to talk to different LLM providers and models.
   - Swap providers via configuration rather than code changes.
@@ -62,6 +67,7 @@ Because this project is evolving, the most reliable way to try it is to clone an
 
 3) Explore the utilities
 - [Code Crawler](./quickstart/code_crawler_quickstart.md) - Transform your codebase into actionable intelligence
+- [Math Syntax Converter](./math_converter/README.md) - Convert between LaTeX, MathJax, ASCII, and Unicode math
 - [Universal LLM Providers](./quickstart/providers_quickstart.md) - Write once, run on any AI provider
 - [Github-dlr](./quickstart/github_dlr_quickstart.md) - Download specific files/folders from GitHub
 - [Dependency Analyzer](./quickstart/dependency_analyzer_quickstart.md) - Real-time dependency tracking
