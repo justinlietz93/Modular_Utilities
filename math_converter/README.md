@@ -1,12 +1,13 @@
 # Math Syntax Converter
 
-A powerful CLI tool for converting math syntax between different formats: LaTeX, MathJax (GitHub-friendly), ASCII, and Unicode. Also extracts math equations from PDF files and generates executable Python code from mathematical expressions.
+A powerful CLI tool for converting math syntax between different formats: LaTeX, MathJax (GitHub-friendly), ASCII, and Unicode. Also extracts math equations from PDF files and generates executable code in Python or Rust from mathematical expressions.
 
 ## Features
 
 - 🔄 Convert between LaTeX, MathJax, ASCII, and Unicode math syntaxes
 - 📄 Extract math equations from PDF files (research papers, books, etc.)
-- 🐍 **NEW:** Generate Python code libraries from extracted math expressions
+- 🐍 Generate Python code libraries from extracted math expressions
+- 🦀 **NEW:** Generate Rust code modules from extracted math expressions
 - 📁 Process single files or entire directories
 - 🎯 In-place conversion or output to separate directory
 - 🤖 Smart interactive prompts when options are missing
@@ -226,7 +227,9 @@ $$\sum_{i=1}^n i = \frac{n(n+1)}{2}$$
 
 ### Code Generation from PDFs
 
-**NEW:** Generate executable Python code from mathematical expressions in PDFs:
+**NEW:** Generate executable code (Python or Rust) from mathematical expressions in PDFs:
+
+#### Python Code Generation
 
 ```bash
 # Extract math from PDF and generate Python functions
@@ -239,21 +242,34 @@ convert-math --input paper.pdf --codegen python --naming-strategy sequential
 convert-math --input paper.pdf --codegen python --simplify
 ```
 
+#### Rust Code Generation
+
+```bash
+# Extract math from PDF and generate Rust functions
+convert-math --input research-paper.pdf --codegen rust --codegen-output generated/
+
+# Use sequential naming for functions
+convert-math --input paper.pdf --codegen rust --naming-strategy sequential
+
+# Simplify expressions before generating code
+convert-math --input paper.pdf --codegen rust --simplify
+```
+
 The code generator:
 - Extracts LaTeX expressions from PDF
 - Parses them using SymPy
-- Generates callable Python functions with proper parameters
-- Creates a module with all functions, docstrings, and metadata
+- Generates callable functions with proper parameters
+- Creates a module with all functions, documentation, and metadata
 - Exports a symbol matrix (JSON) tracking all variables
 - Logs any expressions that failed to parse
 
 **Generated files:**
-- `{name}_lib.py` - The Python module with generated functions
+- `{name}_lib.py` or `{name}_lib.rs` - The module with generated functions
 - `{name}_lib.symbols.json` - Symbol registry with variable tracking
 - `{name}_lib.metadata.json` - Metadata about all generated functions
 - `failed_expressions.txt` - Log of expressions that couldn't be parsed
 
-**Example output:**
+**Example Python output:**
 
 Given a PDF with expressions like `x + y` and `a^2 + b^2`, generates:
 
@@ -296,6 +312,50 @@ result = expr_0(2, 3)  # Returns 5
 result = expr_1(3, 4)  # Returns 25
 ```
 
+**Example Rust output:**
+
+The same expressions generate idiomatic Rust code:
+
+```rust
+/// Generated mathematical function.
+/// 
+/// Original: x + y
+/// Page: 1
+/// 
+/// Parameters:
+/// x: numeric value
+/// y: numeric value
+/// 
+/// Returns:
+/// Evaluated expression result
+pub fn expr_0(x: f64, y: f64) -> f64 {
+    x + y
+}
+
+/// Generated mathematical function.
+/// 
+/// Original: a^2 + b^2
+/// Page: 2
+/// 
+/// Parameters:
+/// a: numeric value
+/// b: numeric value
+/// 
+/// Returns:
+/// Evaluated expression result
+pub fn expr_1(a: f64, b: f64) -> f64 {
+    a.powi(2) + b.powi(2)
+}
+```
+
+Rust code features:
+- Uses `f64` for numeric values (high precision)
+- Idiomatic Rust methods (`.powi()`, `.sqrt()`, `.sin()`, etc.)
+- Full documentation comments (`///`)
+- Module-level documentation (`//!`)
+- Memory-safe, zero-cost abstractions
+- Ready for high-performance numerical computing
+
 **Naming Strategies:**
 - `hash` (default): Generates function names with hash-based suffixes (e.g., `expr_a1b2c3d4`)
 - `sequential`: Simple sequential numbering (e.g., `expr_0`, `expr_1`, ...)
@@ -309,7 +369,7 @@ The converter follows a clean architecture pattern:
 math_converter/
 ├── domain/           # Core models and types
 │   ├── syntax_types.py     # Syntax conversion types
-│   └── codegen_types.py    # Code generation types
+│   └── codegen_types.py    # Code generation types, backend abstractions
 ├── application/      # Business logic
 │   ├── converter.py          # Syntax conversion engine
 │   ├── file_processor.py    # File processing
@@ -317,8 +377,11 @@ math_converter/
 │   ├── expression_pipeline.py  # LaTeX parsing pipeline
 │   ├── symbol_registry.py      # Variable name management
 │   ├── function_generator.py   # Function code generation
-│   ├── library_assembler.py    # Module assembly
-│   └── codegen_orchestrator.py # Code generation orchestration
+│   ├── codegen_orchestrator.py # Code generation orchestration
+│   └── backends/             # Language-specific code generators
+│       ├── python_backend.py # Python code generation
+│       ├── rust_backend.py   # Rust code generation
+│       └── registry.py       # Backend registry
 ├── infrastructure/   # External integrations
 └── presentation/     # CLI interface
 ```
@@ -337,13 +400,14 @@ math_converter/
 pytest tests/math_converter/ -v
 ```
 
-All 86 tests should pass, including:
+All 101 tests should pass, including:
 - 33 tests for syntax conversion
 - 9 tests for codegen types
 - 11 tests for symbol registry
 - 16 tests for expression pipeline
 - 11 tests for function generator
-- 7 tests for codegen integration
+- 7 tests for Python codegen integration
+- 15 tests for Rust backend
 
 ### Adding New Syntax Types
 
@@ -356,8 +420,21 @@ All 86 tests should pass, including:
 
 1. Core pipeline: `expression_pipeline.py` handles LaTeX → SymPy parsing
 2. Symbol naming: `symbol_registry.py` manages variable name generation
-3. Function creation: `function_generator.py` generates Python function code
-4. Module assembly: `library_assembler.py` creates complete module files
+3. Function creation: `function_generator.py` generates language-agnostic function metadata
+4. Backend implementation: Language-specific backends handle code generation
+5. Orchestration: `codegen_orchestrator.py` coordinates the full pipeline
+
+### Adding New Code Generation Backends
+
+1. Create a new backend class in `application/backends/` inheriting from `CodegenBackend`
+2. Implement required methods:
+   - `convert_expression_to_code()` - Convert SymPy to target language
+   - `generate_function_code()` - Generate function in target language
+   - `assemble_module()` - Assemble complete module
+   - `get_file_extension()` - Return file extension
+3. Register the backend in `backends/registry.py`
+4. Add CLI support in `presentation/cli/main.py`
+5. Add comprehensive tests
 5. Orchestration: `codegen_orchestrator.py` coordinates the full pipeline
 
 ## Limitations
@@ -366,7 +443,8 @@ All 86 tests should pass, including:
 - Some complex LaTeX expressions may not convert perfectly
 - ASCII conversion depends on SymPy's ability to parse the expression
 - Not all Unicode symbols are supported
-- Code generation currently supports Python only (multi-language support planned)
+- Code generation currently supports Python and Rust (Go/C++ support planned)
+- Generated Rust code uses f64 scalar types (ndarray support for multi-dimensional arrays coming soon)
 - Expression simplification is optional and may change expression semantics
 
 ## Contributing
