@@ -1,7 +1,6 @@
 """File processing service."""
 from pathlib import Path
 from typing import List, Optional
-import os
 
 from ..domain.syntax_types import SyntaxType, ConversionRequest
 from .converter import ConversionEngine

@@ -92,7 +92,6 @@ class ConversionEngine:
     def _latex_to_ascii(self, content: str) -> str:
         """Convert LaTeX to ASCII representation."""
         try:
-            from sympy import sympify, latex
             from sympy.parsing.latex import parse_latex
             
             def convert_expr(match):
