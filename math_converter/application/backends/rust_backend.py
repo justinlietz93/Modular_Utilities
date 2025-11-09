@@ -55,33 +55,100 @@ class RustBackend(CodegenBackend):
         """
         rust_code = c_code
         
-        # Replace pow(x, 2) with x.powi(2) for integer powers
-        rust_code = re.sub(r'pow\(([^,]+),\s*(\d+)\)', r'\1.powi(\2)', rust_code)
+        # Replace pow(x, n) with x.powi(n) for integer powers or x.powf(y) for float powers
+        # We need to check if second arg is an integer
+        def replace_pow(args):
+            if len(args) >= 2:
+                # Check if second arg is a simple integer
+                if args[1].strip().isdigit():
+                    return f'{args[0]}.powi({args[1]})'
+                else:
+                    return f'{args[0]}.powf({args[1]})'
+            return f'{args[0]}.powf(1.0)'  # Fallback
         
-        # Replace pow(x, y) with x.powf(y) for float powers
-        rust_code = re.sub(r'pow\(([^,]+),\s*([^)]+)\)', r'\1.powf(\2)', rust_code)
+        rust_code = self._replace_function_calls(rust_code, 'pow', replace_pow)
         
-        # Replace sqrt(x) with x.sqrt()
-        rust_code = re.sub(r'sqrt\(([^)]+)\)', r'(\1).sqrt()', rust_code)
+        # Replace sqrt - use careful matching
+        rust_code = self._replace_function_calls(rust_code, 'sqrt', lambda args: f'({args[0]}).sqrt()')
         
         # Replace sin, cos, tan, etc. with method calls
         for func in ['sin', 'cos', 'tan', 'asin', 'acos', 'atan', 'sinh', 'cosh', 'tanh']:
-            rust_code = re.sub(rf'{func}\(([^)]+)\)', rf'(\1).{func}()', rust_code)
+            rust_code = self._replace_function_calls(rust_code, func, lambda args, f=func: f'({args[0]}).{f}()')
         
         # Replace exp(x) with x.exp()
-        rust_code = re.sub(r'exp\(([^)]+)\)', r'(\1).exp()', rust_code)
+        rust_code = self._replace_function_calls(rust_code, 'exp', lambda args: f'({args[0]}).exp()')
         
         # Replace log(x) with x.ln()
-        rust_code = re.sub(r'log\(([^)]+)\)', r'(\1).ln()', rust_code)
+        rust_code = self._replace_function_calls(rust_code, 'log', lambda args: f'({args[0]}).ln()')
         
         # Replace abs(x) with x.abs()
-        rust_code = re.sub(r'abs\(([^)]+)\)', r'(\1).abs()', rust_code)
+        rust_code = self._replace_function_calls(rust_code, 'abs', lambda args: f'({args[0]}).abs()')
         
         # Replace floor(x) with x.floor()
-        rust_code = re.sub(r'floor\(([^)]+)\)', r'(\1).floor()', rust_code)
+        rust_code = self._replace_function_calls(rust_code, 'floor', lambda args: f'({args[0]}).floor()')
         
         # Replace ceil(x) with x.ceil()
-        rust_code = re.sub(r'ceil\(([^)]+)\)', r'(\1).ceil()', rust_code)
+        rust_code = self._replace_function_calls(rust_code, 'ceil', lambda args: f'({args[0]}).ceil()')
+        
+        # Note: We don't clean up double parentheses as they may be intentional
+        # For example: (x.powi(2) + y.powi(2)).sqrt() is correct
+        
+        return rust_code
+    
+    def _replace_function_calls(self, code: str, func_name: str, replacement_func) -> str:
+        """
+        Replace function calls handling nested parentheses.
+        
+        Args:
+            code: Code string
+            func_name: Function name to replace
+            replacement_func: Function that takes args list and returns replacement
+            
+        Returns:
+            Modified code string
+        """
+        result = []
+        i = 0
+        while i < len(code):
+            # Look for function name followed by (
+            if code[i:i+len(func_name)] == func_name and i + len(func_name) < len(code) and code[i+len(func_name)] == '(':
+                # Found function call, extract arguments
+                start = i + len(func_name) + 1
+                paren_count = 1
+                j = start
+                args_start = []
+                current_arg_start = start
+                
+                while j < len(code) and paren_count > 0:
+                    if code[j] == '(':
+                        paren_count += 1
+                    elif code[j] == ')':
+                        paren_count -= 1
+                        if paren_count == 0:
+                            # End of function call
+                            break
+                    elif code[j] == ',' and paren_count == 1:
+                        # Argument separator at top level
+                        args_start.append(code[current_arg_start:j].strip())
+                        current_arg_start = j + 1
+                    j += 1
+                
+                # Get last argument
+                if current_arg_start < j:
+                    args_start.append(code[current_arg_start:j].strip())
+                
+                # Apply replacement
+                replacement = replacement_func(args_start)
+                result.append(replacement)
+                i = j + 1
+            else:
+                result.append(code[i])
+                i += 1
+        
+        return ''.join(result)
+        
+        # Replace ceil(x) with x.ceil()
+        rust_code = self._replace_function_calls(rust_code, 'ceil', lambda args: f'({args[0]}).ceil()')
         
         # Clean up any double parentheses
         rust_code = rust_code.replace('((', '(').replace('))', ')')
