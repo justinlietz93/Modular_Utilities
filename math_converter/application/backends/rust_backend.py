@@ -1,5 +1,4 @@
 """Rust code generation backend."""
-import re
 from typing import List, Optional, Any
 from ...domain.codegen_types import CodegenBackend, GeneratedFunction
 
@@ -146,14 +145,6 @@ class RustBackend(CodegenBackend):
                 i += 1
         
         return ''.join(result)
-        
-        # Replace ceil(x) with x.ceil()
-        rust_code = self._replace_function_calls(rust_code, 'ceil', lambda args: f'({args[0]}).ceil()')
-        
-        # Clean up any double parentheses
-        rust_code = rust_code.replace('((', '(').replace('))', ')')
-        
-        return rust_code
     
     def generate_function_code(self, func: GeneratedFunction) -> str:
         """
@@ -190,10 +181,13 @@ class RustBackend(CodegenBackend):
         lines.append("//! Generated mathematical function library")
         lines.append(f"//! Module: {module_name}")
         lines.append("//!")
-        lines.append("//! This module was automatically generated from LaTeX expressions.")
+        lines.append(
+            "//! This module was automatically generated from LaTeX "
+            "expressions."
+        )
         lines.append(f"//! Contains {len(functions)} function(s).")
         lines.append("")
-        
+
         # Add documentation about usage
         lines.append("//! ## Usage")
         lines.append("//!")
@@ -207,10 +201,13 @@ class RustBackend(CodegenBackend):
                 lines.append(f"//! let result = {example_func.name}();")
         lines.append("//! ```")
         lines.append("")
-        
+
         # Add any necessary imports
         lines.append("// Note: This module uses f64 arithmetic")
-        lines.append("// For ndarray support, add ndarray dependency to your Cargo.toml")
+        lines.append(
+            "// For ndarray support, add ndarray dependency to your "
+            "Cargo.toml"
+        )
         lines.append("")
         
         # Functions
