@@ -6,6 +6,7 @@ import re
 
 from ..domain.models import KnowledgeGraph, GraphNode, GraphEdge
 from ..infrastructure.similarity import SimilarityService
+from ..infrastructure.extractors import PDFExtractor, ImageExtractor
 
 
 class IngestionService:
@@ -14,6 +15,8 @@ class IngestionService:
     def __init__(self):
         """Initialize ingestion service."""
         self.similarity = SimilarityService()
+        self.pdf_extractor = PDFExtractor()
+        self.image_extractor = ImageExtractor()
     
     def ingest_directory(self, directory: Path, graph: KnowledgeGraph, 
                         recursive: bool = False) -> int:
@@ -29,7 +32,7 @@ class IngestionService:
         files = [f for f in files if f.is_file()]
         
         for file_path in files:
-            if self._is_text_file(file_path):
+            if self._is_supported_file(file_path):
                 if self.ingest_file(file_path, graph):
                     count += 1
         
@@ -41,7 +44,11 @@ class IngestionService:
     def ingest_file(self, file_path: Path, graph: KnowledgeGraph) -> bool:
         """Ingest a single file into the graph."""
         try:
-            content = file_path.read_text(encoding='utf-8', errors='ignore')
+            # Determine file type and extract content
+            content = self._extract_content(file_path)
+            
+            if content is None:
+                return False
             
             # Split content into chunks (paragraphs or sections)
             chunks = self._split_content(content)
@@ -65,7 +72,7 @@ class IngestionService:
             return False
     
     def _is_text_file(self, file_path: Path) -> bool:
-        """Check if a file is likely a text file."""
+        """Check if a file is a text file."""
         text_extensions = {
             '.txt', '.md', '.markdown', '.rst', '.log',
             '.py', '.js', '.java', '.cpp', '.c', '.h',
@@ -73,6 +80,44 @@ class IngestionService:
             '.sh', '.bash', '.csv', '.tex', '.org'
         }
         return file_path.suffix.lower() in text_extensions
+    
+    def _is_pdf_file(self, file_path: Path) -> bool:
+        """Check if a file is a PDF."""
+        return file_path.suffix.lower() == '.pdf'
+    
+    def _is_image_file(self, file_path: Path) -> bool:
+        """Check if a file is an image."""
+        image_extensions = {
+            '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tiff', '.tif', '.webp'
+        }
+        return file_path.suffix.lower() in image_extensions
+    
+    def _is_supported_file(self, file_path: Path) -> bool:
+        """Check if a file is supported for ingestion."""
+        return (self._is_text_file(file_path) or 
+                self._is_pdf_file(file_path) or 
+                self._is_image_file(file_path))
+    
+    def _extract_content(self, file_path: Path) -> Optional[str]:
+        """Extract content from a file based on its type."""
+        if self._is_pdf_file(file_path):
+            if not self.pdf_extractor.available:
+                print(f"Warning: PyMuPDF not available. Install with: pip install pymupdf")
+                return None
+            return self.pdf_extractor.extract_text(file_path)
+        elif self._is_image_file(file_path):
+            if not self.image_extractor.available:
+                print(f"Warning: PIL/pytesseract not available. Install with: pip install pillow pytesseract")
+                return None
+            return self.image_extractor.extract_text(file_path)
+        elif self._is_text_file(file_path):
+            try:
+                return file_path.read_text(encoding='utf-8', errors='ignore')
+            except Exception as e:
+                print(f"Warning: Could not read text file {file_path}: {e}")
+                return None
+        else:
+            return None
     
     def _split_content(self, content: str) -> List[str]:
         """Split content into meaningful chunks."""
