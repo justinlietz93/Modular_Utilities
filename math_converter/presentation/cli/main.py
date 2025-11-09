@@ -5,7 +5,9 @@ from pathlib import Path
 from typing import Optional
 
 from ...domain.syntax_types import SyntaxType, ConversionRequest
+from ...domain.codegen_types import CodegenConfig, NamingStrategy
 from ...application.file_processor import FileProcessor
+from ...application.codegen_orchestrator import CodegenOrchestrator
 
 
 def prompt_user(message: str, options: list, allow_cancel: bool = False) -> Optional[str]:
@@ -67,7 +69,7 @@ def main():
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
         prog='convert-math',
-        description='Convert math syntax between LaTeX, MathJax, ASCII, and Unicode, or extract math from PDFs',
+        description='Convert math syntax between LaTeX, MathJax, ASCII, and Unicode, extract math from PDFs, or generate Python code',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -81,6 +83,10 @@ Examples:
   # Extract math from PDF
   convert-math --input research-paper.pdf --output research-equations.md
   convert-math --input research-paper.pdf  # Creates research-paper.md
+  
+  # Generate Python code from PDF math
+  convert-math --input paper.pdf --codegen python --codegen-output generated/
+  convert-math --input paper.pdf --codegen python --naming-strategy sequential
         """
     )
     
@@ -135,6 +141,39 @@ Examples:
         help='Automatically answer no to prompts'
     )
     
+    # Code generation arguments
+    parser.add_argument(
+        '--codegen',
+        dest='codegen',
+        type=str,
+        choices=['python'],
+        help='Generate code in target language (currently only python supported)'
+    )
+    
+    parser.add_argument(
+        '--codegen-output',
+        dest='codegen_output',
+        type=str,
+        default='generated',
+        help='Output directory for generated code (default: generated/)'
+    )
+    
+    parser.add_argument(
+        '--naming-strategy',
+        dest='naming_strategy',
+        type=str,
+        choices=['hash', 'sequential', 'semantic'],
+        default='hash',
+        help='Naming strategy for generated functions (default: hash)'
+    )
+    
+    parser.add_argument(
+        '--simplify',
+        dest='simplify',
+        action='store_true',
+        help='Simplify expressions before generating code'
+    )
+    
     args = parser.parse_args()
     
     # Check if input is a PDF file
@@ -143,15 +182,54 @@ Examples:
     if args.input_paths:
         input_path = Path(args.input_paths[0]) if args.input_paths else None
         
-        # Handle PDF extraction
+        # Handle PDF with code generation
         if input_path and input_path.is_file() and processor.is_pdf_file(input_path):
-            # PDF extraction mode
-            output_path = None
-            if args.output_file:
-                output_path = Path(args.output_file)
-            
-            success = processor.process_pdf_extraction(input_path, output_path)
-            sys.exit(0 if success else 1)
+            if args.codegen:
+                # PDF extraction + code generation mode
+                print(f"Extracting math from {input_path} and generating {args.codegen} code...")
+                
+                # Extract expressions
+                expressions = processor.pdf_extractor.extract_math_from_pdf(input_path)
+                
+                if not expressions:
+                    print("No math expressions found in PDF.")
+                    sys.exit(1)
+                
+                # Configure code generation
+                naming_strat = NamingStrategy(args.naming_strategy)
+                config = CodegenConfig(
+                    naming_strategy=naming_strat,
+                    simplify=args.simplify,
+                    target_language=args.codegen,
+                    export_symbol_matrix=True,
+                    output_dir=args.codegen_output
+                )
+                
+                # Generate code
+                orchestrator = CodegenOrchestrator(config)
+                
+                # Prepare output path
+                output_dir = Path(args.codegen_output)
+                output_dir.mkdir(parents=True, exist_ok=True)
+                
+                module_name = input_path.stem.replace('-', '_').replace(' ', '_')
+                output_path = output_dir / f"{module_name}_lib.py"
+                
+                success = orchestrator.process_expressions(
+                    expressions,
+                    output_path,
+                    module_name=module_name
+                )
+                
+                sys.exit(0 if success else 1)
+            else:
+                # PDF extraction mode only
+                output_path = None
+                if args.output_file:
+                    output_path = Path(args.output_file)
+                
+                success = processor.process_pdf_extraction(input_path, output_path)
+                sys.exit(0 if success else 1)
     
     # Standard conversion mode
     # Parse syntax types
