@@ -6,3 +6,4 @@ build/
 code_crawler_runs/
 *.coverage
 htmlcov/
+.knowledge_graphs/

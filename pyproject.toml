@@ -39,10 +39,11 @@ pdf = [
 [project.scripts]
 code-crawler = "code_crawler.presentation.cli.main:main"
 convert-math = "math_converter.presentation.cli.main:main"
+knowledge-graph = "knowledge_graph.presentation.cli.main:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["code_crawler*", "math_converter*"]
+include = ["code_crawler*", "math_converter*", "knowledge_graph*"]
 
 [tool.setuptools.package-data]
 code_crawler = [
