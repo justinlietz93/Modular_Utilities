@@ -3,10 +3,10 @@ requires = ["setuptools>=64", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "code-crawler"
+name = "modular-utilities"
 version = "0.1.0"
-description = "Supercharged CLI-first code crawler for deterministic artifacts"
-readme = "code_crawler/README.md"
+description = "Collection of developer utilities including code crawler, math converter, and more"
+readme = "README.md"
 requires-python = ">=3.10"
 authors = [
   {name = "Modular Utilities Team"}
@@ -16,7 +16,9 @@ classifiers = [
   "License :: OSI Approved :: MIT License",
   "Operating System :: OS Independent",
 ]
-dependencies = []
+dependencies = [
+  "sympy>=1.12,<2",
+]
 
 [project.optional-dependencies]
 dev = [
@@ -33,10 +35,11 @@ dev = [
 
 [project.scripts]
 code-crawler = "code_crawler.presentation.cli.main:main"
+convert-math = "math_converter.presentation.cli.main:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["code_crawler*"]
+include = ["code_crawler*", "math_converter*"]
 
 [tool.setuptools.package-data]
 code_crawler = [
