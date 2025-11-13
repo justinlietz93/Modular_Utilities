@@ -24,6 +24,13 @@ If you’re a developer looking to improve your workflow, or a curious reader ex
   - Generates structured metadata (indexes, summaries, references) for your repo.
   - Useful for code navigation, documentation, code search, embeddings pipelines, and LLM-augmented tooling.
 
+- Advanced Chunking Module
+  - Sophisticated text chunking with structural awareness for code and mathematical expressions.
+  - Multiple strategies: sentence, line, paragraph, word count, character count, token count.
+  - OCR integration for image-based documents and scanned PDFs.
+  - Automatic text repair (mojibake, OCR artifacts).
+  - Perfect for LLM context preparation, knowledge graph ingestion, and content mining.
+
 - Knowledge Graph Utility
   - Build semantic knowledge graphs from your documents and code.
   - Query using natural language, extract subgraphs, track usage patterns.
@@ -40,6 +47,7 @@ If you’re a developer looking to improve your workflow, or a curious reader ex
 
 - More utilities to come
   - Modular building blocks oriented around DX and AI-assisted development.
+
 
 ---
 
@@ -72,6 +80,7 @@ Because this project is evolving, the most reliable way to try it is to clone an
 
 3) Explore the utilities
 - [Code Crawler](./quickstart/code_crawler_quickstart.md) - Transform your codebase into actionable intelligence
+- [Advanced Chunking](./advanced_chunking/README.md) - Intelligent text chunking with structural awareness
 - [Knowledge Graph](./quickstart/knowledge_graph_quickstart.md) - Organize and query knowledge using semantic similarity
 - [Math Syntax Converter](./math_converter/README.md) - Convert between LaTeX, MathJax, ASCII, and Unicode math
 - [Universal LLM Providers](./quickstart/providers_quickstart.md) - Write once, run on any AI provider
