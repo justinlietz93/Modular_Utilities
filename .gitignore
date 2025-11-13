@@ -7,3 +7,15 @@ code_crawler_runs/
 *.coverage
 htmlcov/
 .knowledge_graphs/
+GPT-Export-Parser/2025-11-13-20-21-12/chat.html
+GPT-Export-Parser/2025-11-13-20-21-12/message_feedback.json
+GPT-Export-Parser/2025-11-13-20-21-12/shared_conversations.json
+GPT-Export-Parser/2025-11-13-20-21-12/shopping.json
+GPT-Export-Parser/2025-11-13-20-21-12/user.json
+venv
+GPT-Export-Parser/d9d4985d65221493f40a61943530d1a744f95a97b77764c107b836cdd1150b68-2025-11-13-20-21-12-494de36b7c8e45c896885a3a20797a23.zip
+GPT-Export-Parser/Daily-Tasks/1.md
+GPT-Export-Parser/Daily-Tasks/2.md
+GPT-Export-Parser/Daily-Tasks/3.md
+GPT-Export-Parser/Daily-Tasks/4.md
+GPT-Export-Parser/summary.csv
