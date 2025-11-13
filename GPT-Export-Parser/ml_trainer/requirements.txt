@@ -8,7 +8,8 @@ sentence-transformers>=2.2.0
 faiss-cpu>=1.7.4  # Use faiss-gpu for GPU acceleration
 
 # Fallback - scikit-learn for TF-IDF when sentence-transformers unavailable
-scikit-learn>=1.0.0
+# Note: Version 1.0.1+ required to avoid CVE-2021-43975 (DoS vulnerability)
+scikit-learn>=1.0.1
 
 # Core scientific computing
 numpy>=1.21.0
