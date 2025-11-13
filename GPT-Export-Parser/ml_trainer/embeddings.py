@@ -99,9 +99,15 @@ class EmbeddingGenerator:
             return self.model.encode(text, convert_to_numpy=True)
         elif self.vectorizer:
             # TF-IDF fallback
-            # Note: Need to fit on corpus first - this is a limitation
-            vec = self.vectorizer.transform([text])
-            return vec.toarray()[0]
+            # Fit on single text if not already fitted
+            try:
+                vec = self.vectorizer.transform([text])
+                return vec.toarray()[0]
+            except:
+                # Not fitted yet, fit on this text
+                self.vectorizer.fit([text])
+                vec = self.vectorizer.transform([text])
+                return vec.toarray()[0]
         else:
             raise RuntimeError("No embedding model available")
     
