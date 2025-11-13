@@ -2,6 +2,8 @@
 
 A Python utility to parse and organize ChatGPT conversation exports into readable text files, organized by month and year.
 
+**NEW:** ML Memory Trainer - Build a "permanent memory" from your conversations! See [ml_trainer/README.md](ml_trainer/README.md) for details.
+
 ## Overview
 
 This tool processes ChatGPT conversation export data (from the `conversations.json` file) and:
@@ -10,10 +12,26 @@ This tool processes ChatGPT conversation export data (from the `conversations.js
 - Organizes conversations into monthly directories
 - Saves each conversation as a plain text file
 - Generates a pruned JSON file with structured conversation data
+- **NEW:** Train ML models for semantic search, prompt assistance, and thread detection
+
+## Components
+
+### 1. Extract Messages (`extract_messages.py`)
+Parses and organizes your ChatGPT conversation exports.
+
+### 2. ML Memory Trainer (`ml_trainer/`)
+**NEW!** Build an intelligent "permanent memory" system:
+- **Semantic Search**: Find relevant past conversations
+- **Prompt Assistance**: Get context-aware suggestions
+- **Thread Detection**: Identify open threads and action items
+- **Incremental Training**: Daily updates with only new conversations
+- **Privacy-First**: 100% local execution, no cloud dependencies
+
+See [ml_trainer/README.md](ml_trainer/README.md) for complete documentation.
 
 ## Prerequisites
 
-- Python 3.x
+- Python 3.10+
 - ChatGPT conversation export data (`conversations.json`)
 
 ## How to Get Your ChatGPT Data
@@ -163,6 +181,7 @@ File names are automatically sanitized:
 
 ## Features
 
+### Extract Messages
 - **Message extraction**: Parses the conversation tree structure to extract messages in chronological order
 - **Author identification**: Distinguishes between user, ChatGPT, and custom system messages
 - **Date-based organization**: Groups conversations by month and year
@@ -174,15 +193,53 @@ File names are automatically sanitized:
 - **Date filter**: `--since YYYY-MM-DD` filters new ingestion to recent updates
 - **Stats and CSV**: `--stats` for a quick overview, `--csv-out` for downstream analysis
 
+### ML Memory Trainer (NEW!)
+- **Semantic Search**: Find relevant conversations using meaning, not just keywords
+- **Prompt Assistance**: Get context-aware suggestions from your conversation history
+- **Thread Detection**: Automatically identify open threads and unresolved questions
+- **Action Item Tracking**: Find pending tasks and follow-ups
+- **Incremental Training**: Efficient daily updates with only new/changed conversations
+- **Privacy-Preserving**: 100% local execution, no cloud dependencies
+- **Flexible Architecture**: Works with sentence-transformers + FAISS, or falls back to TF-IDF + numpy
+
+See [ml_trainer/README.md](ml_trainer/README.md) for complete ML features documentation.
+
+## Quick Start with ML Memory
+
+```bash
+# 1. Extract your conversations
+python extract_messages.py
+
+# 2. Train the ML model
+python ml_trainer/cli.py train
+
+# 3. Query your memory
+python ml_trainer/cli.py query "How did I solve that async error?"
+
+# 4. Check open threads
+python ml_trainer/cli.py threads --summary
+
+# 5. Get prompt assistance
+python ml_trainer/cli.py prompt-assist "debugging React hooks" --enhanced
+```
+
 ## Limitations
 
+### Extract Messages
 - Skips conversations without an update timestamp
 - Only processes text content (ignores images, code outputs, etc.)
 - System messages are filtered out (except custom user system messages)
 
-## Notes on search
+### ML Memory Trainer
+- Semantic search requires sentence-transformers or falls back to TF-IDF
+- Vector search requires FAISS or falls back to numpy (slower for large datasets)
+- Initial training time scales with number of conversations (~100/min on CPU)
 
-Basic exact-text search is best done with your editor across the generated `.txt` files or `pruned.json`. If you want semantic search (meaning-based), that requires additional tooling (embedding models + vector index). If you want, we can add a minimal semantic search utility as a separate command in the future.
+## Notes on Search
+
+**Basic Search**: Use your text editor to search across the generated `.txt` files or `pruned.json`.
+
+**Semantic Search**: Use the new ML Memory Trainer! It provides meaning-based search, not just keyword matching. See [ml_trainer/README.md](ml_trainer/README.md) for details.
 
 ## Troubleshooting
 
