@@ -1,10 +1,5 @@
 """Tests for vector_store module."""
 
-import sys
-from pathlib import Path
-# Add GPT-Export-Parser to path before importing
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'GPT-Export-Parser'))
-
 import pytest
 import numpy as np
 import tempfile
@@ -68,9 +63,10 @@ def test_search(vector_store):
     assert all(isinstance(r, tuple) for r in results)
     assert all(len(r) == 2 for r in results)  # (distance, metadata)
     
-    # Check that distances are sorted (closest first in cosine similarity)
+    # Check that distances are sorted (closest first for cosine similarity)
     distances = [r[0] for r in results]
-    # For our numpy implementation, smaller distance = more similar
+    # For our numpy implementation, smaller distance = more similar (sorted ascending)
+    assert distances == sorted(distances), "Results should be sorted by distance"
 
 
 def test_search_with_filter(vector_store):

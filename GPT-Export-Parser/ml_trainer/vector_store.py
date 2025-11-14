@@ -13,6 +13,9 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
+# Constants
+EPSILON = 1e-8  # Small value to prevent division by zero
+
 
 class VectorStore:
     """
@@ -166,10 +169,10 @@ class VectorStore:
             # Numpy fallback - compute cosine similarity
             # L2 normalize for cosine similarity
             query_norm = query_vector / (
-                np.linalg.norm(query_vector, axis=1, keepdims=True) + 1e-8
+                np.linalg.norm(query_vector, axis=1, keepdims=True) + EPSILON
             )
             embeddings_norm = self.embeddings / (
-                np.linalg.norm(self.embeddings, axis=1, keepdims=True) + 1e-8
+                np.linalg.norm(self.embeddings, axis=1, keepdims=True) + EPSILON
             )
             
             # Compute similarities

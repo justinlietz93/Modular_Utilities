@@ -13,6 +13,9 @@ from .embeddings import EmbeddingGenerator
 
 logger = logging.getLogger(__name__)
 
+# Constants
+CHARS_PER_TOKEN = 4  # Rough estimate: 1 token ≈ 4 characters
+
 
 class ConversationRetriever:
     """Retrieves relevant conversation context using RAG approach."""
@@ -271,7 +274,7 @@ class ConversationRetriever:
         
         context_parts = []
         total_chars = 0
-        max_chars = max_tokens * 4  # Rough estimate: 1 token ≈ 4 chars
+        max_chars = max_tokens * CHARS_PER_TOKEN  # Rough estimate: 1 token ≈ 4 chars
         
         for i, result in enumerate(results, 1):
             title = result.get('title', 'Untitled')

@@ -1,10 +1,5 @@
 """Tests for embeddings module."""
 
-import sys
-from pathlib import Path
-# Add GPT-Export-Parser to path before importing
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'GPT-Export-Parser'))
-
 import pytest
 import numpy as np
 import tempfile
@@ -40,7 +35,7 @@ def test_embedding_generator_initialization():
     gen = EmbeddingGenerator(use_sentence_transformers=False)
     
     assert gen.model_name == 'all-MiniLM-L6-v2'
-    assert gen.use_sentence_transformers == False
+    assert not gen.use_sentence_transformers
     assert gen.vectorizer is not None
 
 

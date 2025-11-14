@@ -11,17 +11,6 @@ import os
 import json
 from pathlib import Path
 
-# Add parent directory to path to import ml_trainer modules
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-from ml_trainer.trainer import MLMemoryTrainer
-from ml_trainer.data_loader import DataLoader
-from ml_trainer.embeddings import EmbeddingGenerator
-from ml_trainer.vector_store import VectorStore
-from ml_trainer.retrieval import ConversationRetriever
-from ml_trainer.prompt_builder import PromptBuilder
-from ml_trainer.thread_detector import ThreadDetector
-
 
 def setup_logging(verbose: bool = False):
     """Configure logging."""
@@ -34,6 +23,8 @@ def setup_logging(verbose: bool = False):
 
 def cmd_train(args):
     """Handle train command."""
+    from ml_trainer.trainer import MLMemoryTrainer
+    
     setup_logging(args.verbose)
     
     trainer = MLMemoryTrainer(
@@ -67,6 +58,10 @@ def cmd_train(args):
 
 def cmd_query(args):
     """Handle query command."""
+    from ml_trainer.embeddings import EmbeddingGenerator
+    from ml_trainer.vector_store import VectorStore
+    from ml_trainer.retrieval import ConversationRetriever
+    
     setup_logging(args.verbose)
     
     # Load model
@@ -118,6 +113,11 @@ def cmd_query(args):
 
 def cmd_prompt_assist(args):
     """Handle prompt-assist command."""
+    from ml_trainer.embeddings import EmbeddingGenerator
+    from ml_trainer.vector_store import VectorStore
+    from ml_trainer.retrieval import ConversationRetriever
+    from ml_trainer.prompt_builder import PromptBuilder
+    
     setup_logging(args.verbose)
     
     # Load model components
@@ -173,6 +173,9 @@ def cmd_prompt_assist(args):
 
 def cmd_threads(args):
     """Handle threads command."""
+    from ml_trainer.data_loader import DataLoader
+    from ml_trainer.thread_detector import ThreadDetector
+    
     setup_logging(args.verbose)
     
     # Load conversations
@@ -227,6 +230,8 @@ def cmd_threads(args):
 
 def cmd_status(args):
     """Handle status command."""
+    from ml_trainer.trainer import MLMemoryTrainer
+    
     setup_logging(args.verbose)
     
     trainer = MLMemoryTrainer(
@@ -363,4 +368,6 @@ def main():
 
 
 if __name__ == '__main__':
+    # Add parent directory to path to import ml_trainer modules
+    sys.path.insert(0, str(Path(__file__).parent.parent))
     sys.exit(main())
