@@ -18,6 +18,7 @@ OPEN_INDICATOR_WEIGHT = 0.15  # Weight per open indicator found
 MAX_OPEN_INDICATOR_SCORE = 0.5  # Maximum score from open indicators
 QUESTION_WEIGHT = 0.3  # Weight for unresolved questions
 RESOLUTION_PENALTY = 0.1  # Penalty per resolution indicator found
+MAX_RESOLUTION_PENALTY = 0.3  # Maximum penalty from resolution indicators
 
 
 class ThreadDetector:
@@ -131,7 +132,7 @@ class ThreadDetector:
             1 for indicator in self.resolution_indicators
             if indicator in full_text
         )
-        score -= min(resolution_count * RESOLUTION_PENALTY, 0.3)
+        score -= min(resolution_count * RESOLUTION_PENALTY, MAX_RESOLUTION_PENALTY)
         
         # Normalize to [0, 1]
         return max(0.0, min(1.0, score))
