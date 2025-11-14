@@ -12,6 +12,13 @@ from .data_loader import ConversationData
 
 logger = logging.getLogger(__name__)
 
+# Constants for thread detection scoring
+OPEN_THREAD_THRESHOLD = 0.3  # Threshold for identifying likely open threads
+OPEN_INDICATOR_WEIGHT = 0.15  # Weight per open indicator found
+MAX_OPEN_INDICATOR_SCORE = 0.5  # Maximum score from open indicators
+QUESTION_WEIGHT = 0.3  # Weight for unresolved questions
+RESOLUTION_PENALTY = 0.1  # Penalty per resolution indicator found
+
 
 class ThreadDetector:
     """Detects open threads and unresolved questions in conversations."""
@@ -73,7 +80,7 @@ class ThreadDetector:
             # Analyze conversation for open indicators
             score = self._calculate_open_thread_score(conv)
             
-            if score > 0.3:  # Threshold for "likely open"
+            if score > OPEN_THREAD_THRESHOLD:  # Threshold for "likely open"
                 thread_info = {
                     'conv_id': conv.id,
                     'title': conv.title,
@@ -108,7 +115,7 @@ class ThreadDetector:
             1 for indicator in self.open_indicators
             if indicator in full_text
         )
-        score += min(open_count * 0.15, 0.5)
+        score += min(open_count * OPEN_INDICATOR_WEIGHT, MAX_OPEN_INDICATOR_SCORE)
         
         # Check for unresolved questions (questions without answers)
         last_messages = conv.messages[-3:] if len(conv.messages) >= 3 else conv.messages
@@ -117,14 +124,14 @@ class ThreadDetector:
             for indicator in self.question_indicators
         )
         if last_is_question:
-            score += 0.3
+            score += QUESTION_WEIGHT
         
         # Penalize if resolution indicators present
         resolution_count = sum(
             1 for indicator in self.resolution_indicators
             if indicator in full_text
         )
-        score -= min(resolution_count * 0.1, 0.3)
+        score -= min(resolution_count * RESOLUTION_PENALTY, 0.3)
         
         # Normalize to [0, 1]
         return max(0.0, min(1.0, score))
