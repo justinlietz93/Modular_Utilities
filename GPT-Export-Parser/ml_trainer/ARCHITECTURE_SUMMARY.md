@@ -1,4 +1,4 @@
-# ML Memory Trainer - Implementation Summary
+# ML Memory Trainer - Architecture Summary
 
 A comprehensive ML-based "permanent memory" system for ChatGPT conversation exports, enabling semantic search, prompt assistance, and intelligent thread detection.
 
