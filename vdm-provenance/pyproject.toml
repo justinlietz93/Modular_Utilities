@@ -1,0 +1,15 @@
+[project]
+name = "vdm-provenance"
+version = "0.1.0"
+description = "VDM Provenance Manifest Generator — immutable SHA-256 + tree-hash manifests"
+readme = "README.md"  # optional; create if desired
+requires-python = ">=3.8"
+license = {file = "LICENSE"}  # optional
+authors = [{name = "Justin K. Lietz", email = "your-email@example.com"}]
+dependencies = []
+
+[project.scripts]
+build_provenance = "vdm_provenance.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
